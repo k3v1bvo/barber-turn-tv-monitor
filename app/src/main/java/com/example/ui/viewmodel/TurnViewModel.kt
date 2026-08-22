@@ -171,6 +171,14 @@ class TurnViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun resetSettingsToDefaults() {
+        viewModelScope.launch {
+            settingsManager.resetToDefaultSettings()
+            _showSettingsDialog.value = false
+            fetchState()
+        }
+    }
+
     fun openSettingsDialog() {
         _showSettingsDialog.value = true
     }

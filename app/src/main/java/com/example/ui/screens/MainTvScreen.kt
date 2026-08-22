@@ -305,6 +305,9 @@ fun MainTvScreen(
                     onSave = { url, key, shopName, isDemo ->
                         viewModel.saveSettings(url, key, shopName, isDemo)
                     },
+                    onResetToDefaults = {
+                        viewModel.resetSettingsToDefaults()
+                    },
                     onDismiss = { viewModel.closeSettingsDialog() }
                 )
             }

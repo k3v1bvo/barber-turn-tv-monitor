@@ -1,5 +1,6 @@
 package com.example.data.remote
 
+import com.example.BuildConfig
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.createSupabaseClient
@@ -13,8 +14,18 @@ import io.github.jan.supabase.storage.Storage
  */
 object SupabaseClientProvider {
 
-    private var currentUrl: String = "https://your-supabase-project.supabase.co"
-    private var currentKey: String = "your-anon-key"
+    val defaultUrl: String
+        get() = BuildConfig.NEXT_PUBLIC_SUPABASE_URL.ifBlank {
+            BuildConfig.DEFAULT_SUPABASE_URL.ifBlank { "https://yqzvhtkakmnphoudsadg.supabase.co" }
+        }
+
+    val defaultKey: String
+        get() = BuildConfig.NEXT_PUBLIC_SUPABASE_ANON_KEY.ifBlank {
+            BuildConfig.DEFAULT_SUPABASE_KEY
+        }
+
+    private var currentUrl: String = defaultUrl
+    private var currentKey: String = defaultKey
 
     private var clientInstance: SupabaseClient? = null
 
@@ -24,8 +35,8 @@ object SupabaseClientProvider {
      */
     @Synchronized
     fun getInstance(
-        supabaseUrl: String = currentUrl,
-        supabaseKey: String = currentKey
+        supabaseUrl: String = defaultUrl,
+        supabaseKey: String = defaultKey
     ): SupabaseClient {
         val sanitizedUrl = supabaseUrl.trim().removeSuffix("/")
         val sanitizedKey = supabaseKey.trim()
@@ -34,9 +45,12 @@ object SupabaseClientProvider {
             currentUrl = sanitizedUrl
             currentKey = sanitizedKey
 
+            val finalUrl = if (sanitizedUrl.isNotBlank()) sanitizedUrl else defaultUrl
+            val finalKey = if (sanitizedKey.isNotBlank()) sanitizedKey else defaultKey
+
             clientInstance = createSupabaseClient(
-                supabaseUrl = if (sanitizedUrl.isNotBlank()) sanitizedUrl else "https://your-supabase-project.supabase.co",
-                supabaseKey = if (sanitizedKey.isNotBlank()) sanitizedKey else "your-anon-key"
+                supabaseUrl = finalUrl,
+                supabaseKey = finalKey
             ) {
                 install(Postgrest)
                 install(Realtime)
@@ -53,3 +67,4 @@ object SupabaseClientProvider {
     val client: SupabaseClient
         get() = getInstance()
 }
+

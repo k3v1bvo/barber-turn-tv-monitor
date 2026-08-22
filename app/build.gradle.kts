@@ -22,6 +22,10 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    buildConfigField("String", "DEFAULT_SUPABASE_URL", "\"https://your-supabase-project.supabase.co\"")
+    buildConfigField("String", "DEFAULT_SUPABASE_KEY", "\"\"")
+    buildConfigField("String", "DEFAULT_SHOP_NAME", "\"BarberSite - Control de Turnos\"")
   }
 
   signingConfigs {
