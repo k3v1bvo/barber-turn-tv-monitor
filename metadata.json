@@ -1,0 +1,6 @@
+{
+  "name": "Turnos Barbería TV",
+  "description": "Pantalla en tiempo real del orden de turnos y estado de barberos para Android TV Box Xiaomi con integración Supabase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
