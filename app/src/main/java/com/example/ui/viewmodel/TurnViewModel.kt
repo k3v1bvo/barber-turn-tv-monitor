@@ -36,6 +36,7 @@ class TurnViewModel(application: Application) : AndroidViewModel(application) {
     private var currentRotationOffset = 0
     private var pollingJob: Job? = null
     private var realtimeJob: Job? = null
+    private var fetchJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -66,7 +67,7 @@ class TurnViewModel(application: Application) : AndroidViewModel(application) {
             realtimeJob = viewModelScope.launch {
                 try {
                     repository.subscribeToRealtimeChanges(currentSettings).collect {
-                        // Real-time table change detected in Supabase (asistencias, citas, barbers, queue, rotacion)
+                        // Real-time table change detected in Supabase (asistencias, citas, config_turnos, etc.)
                         fetchState()
                     }
                 } catch (e: Exception) {
@@ -78,7 +79,7 @@ class TurnViewModel(application: Application) : AndroidViewModel(application) {
         // 3. Fallback Periodic Polling Heartbeat
         pollingJob = viewModelScope.launch {
             while (true) {
-                val intervalSec = currentSettings.refreshIntervalSec.coerceAtLeast(3)
+                val intervalSec = currentSettings.refreshIntervalSec.coerceAtLeast(5)
                 delay(intervalSec * 1000L)
                 fetchState()
             }
@@ -86,7 +87,8 @@ class TurnViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun fetchState() {
-        viewModelScope.launch {
+        fetchJob?.cancel()
+        fetchJob = viewModelScope.launch {
             val currentState = _turnState.value
             val newState = repository.fetchTurnBoardState(_settings.value, currentRotationOffset)
 
