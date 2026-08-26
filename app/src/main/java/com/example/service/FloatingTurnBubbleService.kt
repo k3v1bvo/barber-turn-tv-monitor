@@ -15,6 +15,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
@@ -257,6 +258,14 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
             windowManager?.addView(composeView, layoutParams)
         } catch (e: Exception) {
             e.printStackTrace()
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                Toast.makeText(
+                    applicationContext,
+                    "TV Box: Ve a Ajustes > Apps > BarberSite > Permisos y activa 'Mostrar sobre otras apps'",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            stopSelf()
         }
     }
 
