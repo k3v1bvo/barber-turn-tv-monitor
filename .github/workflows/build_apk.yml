@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout code
@@ -18,10 +20,14 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew || true
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+      with:
+        gradle-version: '8.11.1'
 
     - name: Create .env file with secrets
       run: |
@@ -29,7 +35,7 @@ jobs:
         echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxenZodGtha21ucGhvdWRzYWRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3MTgzNzQsImV4cCI6MjA4NzI5NDM3NH0.Ym5rhF2wv94FqeQPUmFdkPpTqE-Lreaosa5KVwWxh9w' }}" >> .env
 
     - name: Build APK with Gradle
-      run: ./gradlew assembleRelease || ./gradlew assembleDebug
+      run: gradle assembleDebug --stacktrace --no-daemon
 
     - name: Find and Upload APK Artifact
       uses: actions/upload-artifact@v4
@@ -38,3 +44,4 @@ jobs:
         path: |
           app/build/outputs/apk/release/*.apk
           app/build/outputs/apk/debug/*.apk
+
