@@ -192,48 +192,86 @@ class TurnRepository {
             }
 
             // Build Barber list
-            val allPresentBarbers = presentAsistencias.map { asistencia ->
-                val bId = asistencia.profileId ?: asistencia.barberoId ?: asistencia.profiles?.id ?: "unknown"
-                val name = asistencia.profiles?.fullName
-                    ?.ifBlank { null }
-                    ?: "Barbero #${bId.takeLast(4)}"
-                val avatar = asistencia.profiles?.avatarUrl
-                val arrival = asistencia.horaEntrada ?: "08:00:00"
-                val completed = completedCountMap[bId] ?: 0
-                val lastComp = lastCompletedAtMap[bId]
-                val activeInfo = activeCitasMap[bId]
+            val allPresentBarbers: List<Barber> = if (presentAsistencias.isNotEmpty()) {
+                presentAsistencias.map { asistencia ->
+                    val bId = asistencia.profileId ?: asistencia.barberoId ?: asistencia.profiles?.id ?: "unknown"
+                    val name = asistencia.profiles?.fullName
+                        ?.ifBlank { null }
+                        ?: "Barbero #${bId.takeLast(4)}"
+                    val avatar = asistencia.profiles?.avatarUrl
+                    val arrival = asistencia.horaEntrada ?: "08:00:00"
+                    val completed = completedCountMap[bId] ?: 0
+                    val lastComp = lastCompletedAtMap[bId]
+                    val activeInfo = activeCitasMap[bId]
 
-                Barber(
-                    id = bId,
-                    fullName = name,
-                    avatarUrl = avatar,
-                    role = asistencia.profiles?.role ?: "barbero",
-                    horaEntrada = arrival,
-                    completedCountToday = completed,
-                    lastCompletedAt = lastComp,
-                    status = if (activeInfo != null) BarberStatus.EN_CORTE else BarberStatus.DISPONIBLE,
-                    activeClientName = activeInfo?.first,
-                    currentService = activeInfo?.second
-                )
+                    Barber(
+                        id = bId,
+                        fullName = name,
+                        avatarUrl = avatar,
+                        role = asistencia.profiles?.role ?: "barbero",
+                        horaEntrada = arrival,
+                        completedCountToday = completed,
+                        lastCompletedAt = lastComp,
+                        status = if (activeInfo != null) BarberStatus.EN_CORTE else BarberStatus.DISPONIBLE,
+                        activeClientName = activeInfo?.first,
+                        currentService = activeInfo?.second
+                    )
+                }
+            } else {
+                // Fetch registered barbers from profiles table
+                try {
+                    val endpointProfiles = "${settings.url.trim().removeSuffix("/")}/rest/v1/profiles"
+                    val profResp = api.getProfiles(
+                        url = endpointProfiles,
+                        apiKey = settings.apiKey,
+                        authHeader = authHeader
+                    )
+                    val profList = profResp.body() ?: emptyList()
+                    val filteredProf = profList.filter {
+                        (it.role?.lowercase() ?: "barbero") == "barbero" || it.role.isNullOrBlank()
+                    }
+                    filteredProf.map { prof ->
+                        val bId = prof.id ?: "unknown"
+                        val name = prof.fullName?.ifBlank { null } ?: "Barbero #${bId.takeLast(4)}"
+                        val completed = completedCountMap[bId] ?: 0
+                        val lastComp = lastCompletedAtMap[bId]
+                        val activeInfo = activeCitasMap[bId]
+
+                        Barber(
+                            id = bId,
+                            fullName = name,
+                            avatarUrl = prof.avatarUrl,
+                            role = prof.role ?: "barbero",
+                            horaEntrada = "Pendiente",
+                            completedCountToday = completed,
+                            lastCompletedAt = lastComp,
+                            status = if (activeInfo != null) BarberStatus.EN_CORTE else BarberStatus.DISPONIBLE,
+                            activeClientName = activeInfo?.first,
+                            currentService = activeInfo?.second
+                        )
+                    }
+                } catch (e: Exception) {
+                    emptyList()
+                }
             }
 
             // Separate active barbers from queue barbers
             val activeBarbers = allPresentBarbers.filter { it.status == BarberStatus.EN_CORTE }
             val queueEligible = allPresentBarbers.filter { it.status != BarberStatus.EN_CORTE }
 
-            // Priority 1: 0 cuts today, sorted strictly by arrival time (horaEntrada)
+            // Priority 1: 0 cuts today, sorted by arrival time
             val priority1 = queueEligible
                 .filter { it.completedCountToday == 0 }
                 .sortedBy { it.horaEntrada ?: "99:99" }
 
-            // Priority 2: Has cuts today, sorted strictly by last completed time (idle longest)
+            // Priority 2: Has cuts today, sorted by last completed time
             val priority2 = queueEligible
                 .filter { it.completedCountToday > 0 }
                 .sortedBy { it.lastCompletedAt ?: "" }
 
             val rawQueue = priority1 + priority2
 
-            // Apply rotation offset (from local or synced remote offset)
+            // Apply rotation offset
             val shiftedQueue = if (rawQueue.isNotEmpty()) {
                 val safeOffset = (effectiveOffset % rawQueue.size + rawQueue.size) % rawQueue.size
                 rawQueue.drop(safeOffset) + rawQueue.take(safeOffset)
@@ -258,7 +296,7 @@ class TurnRepository {
                 isLiveSupabase = true,
                 isDemoMode = false,
                 isLoading = false,
-                errorMessage = null,
+                errorMessage = if (allPresentBarbers.isEmpty()) "Sin barberos registrados en Supabase" else null,
                 lastRefreshTime = lastRefreshStr,
                 totalCutsToday = totalCompletedToday,
                 barbersPresentCount = allPresentBarbers.size,
@@ -336,7 +374,6 @@ class TurnRepository {
      * - 'asistencias' (barber attendance / arrival)
      * - 'citas' (haircuts, services, queue transitions)
      * - 'turnos_rotacion' & 'config_turnos' (turn rotation offsets)
-     * - 'barbers' & 'queue' (custom database tables)
      *
      * Emits whenever a table change event occurs, enabling instant zero-lag UI updates.
      */
@@ -383,103 +420,5 @@ class TurnRepository {
 
     private fun String?.isNull_or_blank(): Boolean {
         return this == null || this.isBlank()
-    }
-
-    private fun generateDemoState(
-        rotationOffset: Int,
-        shopName: String,
-        lastRefreshTime: String
-    ): TurnBoardState {
-        val demoBarbers = listOf(
-            Barber(
-                id = "b1",
-                fullName = "Carlos 'El Rey' Mendoza",
-                avatarUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
-                role = "Master Barber",
-                horaEntrada = "08:15 AM",
-                completedCountToday = 0,
-                lastCompletedAt = null
-            ),
-            Barber(
-                id = "b2",
-                fullName = "Mateo 'Fade' Silva",
-                avatarUrl = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400",
-                role = "Barbero Pro",
-                horaEntrada = "08:30 AM",
-                completedCountToday = 0,
-                lastCompletedAt = null
-            ),
-            Barber(
-                id = "b3",
-                fullName = "Juan Pablo Rivas",
-                avatarUrl = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400",
-                role = "Especialista en Barba",
-                horaEntrada = "08:45 AM",
-                completedCountToday = 2,
-                lastCompletedAt = "2026-08-12T09:10:00Z"
-            ),
-            Barber(
-                id = "b4",
-                fullName = "Luis Fernando Gómez",
-                avatarUrl = "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=400",
-                role = "Stylist",
-                horaEntrada = "09:00 AM",
-                completedCountToday = 3,
-                lastCompletedAt = "2026-08-12T09:40:00Z"
-            ),
-            Barber(
-                id = "b5",
-                fullName = "Alejandro 'Tex' Castro",
-                avatarUrl = "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400",
-                role = "Barbero",
-                horaEntrada = "09:15 AM",
-                completedCountToday = 4,
-                lastCompletedAt = "2026-08-12T10:00:00Z"
-            )
-        )
-
-        val activeBarbers = listOf(
-            Barber(
-                id = "b6",
-                fullName = "Diego 'Razor' Torres",
-                avatarUrl = "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400",
-                role = "Senior Barber",
-                horaEntrada = "08:00 AM",
-                completedCountToday = 5,
-                status = BarberStatus.EN_CORTE,
-                activeClientName = "Roberto Dávila",
-                currentService = "Corte VIP + Barba"
-            )
-        )
-
-        val rawQueue = listOf(
-            demoBarbers[0],
-            demoBarbers[1],
-            demoBarbers[2],
-            demoBarbers[3],
-            demoBarbers[4]
-        )
-
-        val safeOffset = (rotationOffset % rawQueue.size + rawQueue.size) % rawQueue.size
-        val shiftedQueue = rawQueue.drop(safeOffset) + rawQueue.take(safeOffset)
-
-        val finalQueue = shiftedQueue.mapIndexed { index, barber ->
-            if (index == 0) barber.copy(status = BarberStatus.EN_TURNO)
-            else barber.copy(status = BarberStatus.DISPONIBLE)
-        }
-
-        return TurnBoardState(
-            queuedBarbers = finalQueue,
-            activeBarbers = activeBarbers,
-            rotationOffset = rotationOffset,
-            shopName = shopName,
-            isLiveSupabase = false,
-            isDemoMode = true,
-            isLoading = false,
-            errorMessage = null,
-            lastRefreshTime = lastRefreshTime,
-            totalCutsToday = 14,
-            barbersPresentCount = demoBarbers.size + activeBarbers.size
-        )
     }
 }

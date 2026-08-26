@@ -1,0 +1,356 @@
+package com.example.service
+
+import android.annotation.SuppressLint
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.graphics.PixelFormat
+import android.os.Build
+import android.os.IBinder
+import android.view.Gravity
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.core.app.NotificationCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.example.MainActivity
+import com.example.R
+import com.example.data.local.SettingsManager
+import com.example.data.model.SupabaseSettings
+import com.example.data.model.TurnBoardState
+import com.example.data.repository.TurnRepository
+import com.example.ui.components.FloatingBubbleUi
+import com.example.ui.theme.BarberTvTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
+
+/**
+ * FloatingTurnBubbleService: Foreground Service that injects a floating bubble
+ * directly into the Android WindowManager (TYPE_APPLICATION_OVERLAY).
+ * Stays visible on top of YouTube, Netflix, TV Box Launcher, or any app.
+ */
+class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
+
+    private val serviceJob = SupervisorJob()
+    private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
+
+    private val lifecycleRegistry = LifecycleRegistry(this)
+    private val store = ViewModelStore()
+    private val savedStateRegistryController = SavedStateRegistryController.create(this)
+
+    override val lifecycle: Lifecycle get() = lifecycleRegistry
+    override val viewModelStore: ViewModelStore get() = store
+    override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryController.savedStateRegistry
+
+    private var windowManager: WindowManager? = null
+    private var floatingView: ComposeView? = null
+    private var layoutParams: WindowManager.LayoutParams? = null
+
+    private val repository = TurnRepository()
+    private lateinit var settingsManager: SettingsManager
+
+    private val _turnState = MutableStateFlow(TurnBoardState(isLoading = true))
+    val turnState = _turnState.asStateFlow()
+
+    private var currentSettings = SupabaseSettings()
+    private var currentRotationOffset = 0
+    private var realtimeJob: Job? = null
+    private var pollingJob: Job? = null
+
+    companion object {
+        const val CHANNEL_ID = "barber_floating_turn_channel"
+        const val NOTIFICATION_ID = 9021
+        const val ACTION_STOP = "com.example.service.ACTION_STOP_FLOATING"
+
+        var isRunning = false
+            private set
+
+        fun start(context: Context) {
+            val intent = Intent(context, FloatingTurnBubbleService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+
+        fun stop(context: Context) {
+            val intent = Intent(context, FloatingTurnBubbleService::class.java).apply {
+                action = ACTION_STOP
+            }
+            context.startService(intent)
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        isRunning = true
+        savedStateRegistryController.performRestore(null)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+
+        settingsManager = SettingsManager(applicationContext)
+
+        startForegroundNotification()
+        initWindowManagerView()
+        observeSettingsAndRealtime()
+
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        return START_STICKY
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun startForegroundNotification() {
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Turnos Barbería Flotante",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Muestra la burbuja flotante de turnos sobre otras apps"
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val openAppIntent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            openAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("💈 BarberSite TV - Burbuja Flotante")
+            .setContentText("Turno actual visible sobre todas las apps")
+            .setSmallIcon(android.R.drawable.ic_menu_agenda)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .build()
+
+        startForeground(NOTIFICATION_ID, notification)
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun initWindowManagerView() {
+        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+
+        val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+
+        layoutParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            overlayType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = 40
+            y = 120
+        }
+
+        val composeView = ComposeView(this).apply {
+            setViewTreeLifecycleOwner(this@FloatingTurnBubbleService)
+            setViewTreeViewModelStoreOwner(this@FloatingTurnBubbleService)
+            setViewTreeSavedStateRegistryOwner(this@FloatingTurnBubbleService)
+
+            setContent {
+                BarberTvTheme {
+                    val state by turnState.collectAsState()
+                    FloatingBubbleUi(
+                        turnState = state,
+                        onNextTurn = { onNextTurnClicked() },
+                        onOpenApp = { openMainActivity() },
+                        onCloseService = { stopSelf() }
+                    )
+                }
+            }
+        }
+
+        // Add touch listener to allow dragging the floating bubble anywhere on screen
+        var initialX = 0
+        var initialY = 0
+        var initialTouchX = 0f
+        var initialTouchY = 0f
+        var isClick = false
+
+        composeView.setOnTouchListener { view, event ->
+            val params = layoutParams ?: return@setOnTouchListener false
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialX = params.x
+                    initialY = params.y
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    isClick = true
+                    false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val deltaX = (event.rawX - initialTouchX).toInt()
+                    val deltaY = (event.rawY - initialTouchY).toInt()
+
+                    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+                        isClick = false
+                        params.x = initialX + deltaX
+                        params.y = initialY + deltaY
+                        try {
+                            windowManager?.updateViewLayout(composeView, params)
+                        } catch (_: Exception) {}
+                        true
+                    } else {
+                        false
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (isClick) {
+                        view.performClick()
+                    }
+                    false
+                }
+                else -> false
+            }
+        }
+
+        floatingView = composeView
+        try {
+            windowManager?.addView(composeView, layoutParams)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun observeSettingsAndRealtime() {
+        serviceScope.launch {
+            combine(
+                settingsManager.settingsFlow,
+                settingsManager.rotationOffsetFlow
+            ) { settings, offset ->
+                Pair(settings, offset)
+            }.collectLatest { (settings, offset) ->
+                currentSettings = settings
+                currentRotationOffset = offset
+                restartRealtimeAndPolling()
+            }
+        }
+    }
+
+    private fun restartRealtimeAndPolling() {
+        realtimeJob?.cancel()
+        pollingJob?.cancel()
+
+        fetchState()
+
+        if (!currentSettings.isDemoMode && currentSettings.url.isNotBlank() && currentSettings.apiKey.isNotBlank()) {
+            realtimeJob = serviceScope.launch {
+                try {
+                    repository.subscribeToRealtimeChanges(currentSettings).collect {
+                        fetchState()
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+
+        pollingJob = serviceScope.launch {
+            while (true) {
+                delay(6000L)
+                fetchState()
+            }
+        }
+    }
+
+    private fun fetchState() {
+        serviceScope.launch {
+            try {
+                val newState = repository.fetchTurnBoardState(currentSettings, currentRotationOffset)
+                if (newState.rotationOffset != currentRotationOffset && newState.isLiveSupabase) {
+                    currentRotationOffset = newState.rotationOffset
+                    settingsManager.saveRotationOffset(newState.rotationOffset)
+                }
+                _turnState.value = newState
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun onNextTurnClicked() {
+        serviceScope.launch {
+            val queue = _turnState.value.queuedBarbers
+            if (queue.isNotEmpty()) {
+                val newOffset = (currentRotationOffset + 1) % queue.size
+                currentRotationOffset = newOffset
+                settingsManager.saveRotationOffset(newOffset)
+
+                val activeBarberId = queue.firstOrNull()?.id
+                repository.pushRemoteTurnNext(currentSettings, newOffset, activeBarberId)
+                fetchState()
+            }
+        }
+    }
+
+    private fun openMainActivity() {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        startActivity(intent)
+    }
+
+    override fun onDestroy() {
+        isRunning = false
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        store.clear()
+
+        realtimeJob?.cancel()
+        pollingJob?.cancel()
+        serviceScope.cancel()
+
+        floatingView?.let {
+            try {
+                windowManager?.removeView(it)
+            } catch (_: Exception) {}
+        }
+        floatingView = null
+        super.onDestroy()
+    }
+}
