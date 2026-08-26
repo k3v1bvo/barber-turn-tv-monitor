@@ -1,6 +1,12 @@
 package com.example.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -22,6 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Person
@@ -36,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -47,10 +55,14 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.Barber
 import com.example.ui.theme.BarberGold
+import com.example.ui.theme.BarberGoldGlow
 import com.example.ui.theme.BarberGoldVariant
+import com.example.ui.theme.ElectricCyan
 import com.example.ui.theme.EmeraldLive
+import com.example.ui.theme.TextDark
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextWhite
+import com.example.ui.theme.TvBorder
 import com.example.ui.theme.TvSurfaceVariant
 
 @Composable
@@ -59,27 +71,37 @@ fun HeroNextTurnCard(
     onNextTurn: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var isFocused by remember { mutableStateOf(false) }
+    var isButtonFocused by remember { mutableStateOf(false) }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "hero_glow")
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 0.9f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glow_alpha"
+    )
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(
                 Brush.horizontalGradient(
                     colors = listOf(
-                        Color(0xFF1E293B),
-                        Color(0xFF0F172A)
+                        Color(0xFF151E33),
+                        Color(0xFF0F1728),
+                        Color(0xFF1E2433)
                     )
                 )
             )
             .border(
-                width = if (isFocused) 4.dp else 2.dp,
-                color = if (isFocused) TextWhite else BarberGold,
-                shape = RoundedCornerShape(20.dp)
+                width = 2.dp,
+                color = BarberGold.copy(alpha = glowAlpha),
+                shape = RoundedCornerShape(22.dp)
             )
-            .onFocusChanged { isFocused = it.isFocused }
-            .focusable()
-            .padding(24.dp)
+            .padding(horizontal = 26.dp, vertical = 20.dp)
     ) {
         if (barber == null) {
             Column(
@@ -91,11 +113,11 @@ fun HeroNextTurnCard(
                     imageVector = Icons.Default.Person,
                     contentDescription = null,
                     tint = TextMuted,
-                    modifier = Modifier.size(64.dp)
+                    modifier = Modifier.size(56.dp)
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "No hay barberos en turno",
+                    text = "No hay barberos en lista de espera",
                     fontSize = 20.sp,
                     color = TextMuted,
                     fontWeight = FontWeight.SemiBold
@@ -107,7 +129,7 @@ fun HeroNextTurnCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Column: Barber Photo & Badges
+                // Left Column: Barber Photo & Details
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
@@ -115,15 +137,19 @@ fun HeroNextTurnCard(
                     // Avatar Image with Gold Glowing Ring
                     Box(
                         modifier = Modifier
-                            .size(130.dp)
+                            .size(124.dp)
                             .clip(CircleShape)
-                            .background(BarberGold)
+                            .background(
+                                Brush.sweepGradient(
+                                    listOf(BarberGold, Color(0xFFFDE68A), BarberGoldVariant, BarberGold)
+                                )
+                            )
                             .padding(4.dp)
                             .clip(CircleShape)
-                            .background(Color.DarkGray),
+                            .background(Color(0xFF18181B)),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (!barber.avatarUrl.isNull_or_blank()) {
+                        if (!barber.avatarUrl.isNullOrBlank()) {
                             AsyncImage(
                                 model = barber.avatarUrl,
                                 contentDescription = barber.fullName,
@@ -131,44 +157,51 @@ fun HeroNextTurnCard(
                                 contentScale = ContentScale.Crop
                             )
                         } else {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                tint = TextWhite,
-                                modifier = Modifier.size(72.dp)
+                            val initial = barber.fullName.firstOrNull()?.uppercaseChar()?.toString() ?: "B"
+                            Text(
+                                text = initial,
+                                fontSize = 46.sp,
+                                fontWeight = FontWeight.Black,
+                                color = BarberGold
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(24.dp))
+                    Spacer(modifier = Modifier.width(22.dp))
 
                     // Barber Details
                     Column {
-                        // Badge "EN TURNO #1"
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(BarberGold)
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = Color.Black,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "EN TURNO • PRÓXIMO EN ATENDER",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.Black
-                                )
+                        // Badge "⚡ EN TURNO #1"
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(BarberGold)
+                                    .padding(horizontal = 12.dp, vertical = 5.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Bolt,
+                                        contentDescription = null,
+                                        tint = TextDark,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "TURNO #1 • LE TOCA ATENDER",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = TextDark,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                }
                             }
+
+                            Spacer(modifier = Modifier.width(10.dp))
+                            BarberAvailabilityBadge(status = barber.status)
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             BarberAvailabilityDot(
@@ -179,32 +212,30 @@ fun HeroNextTurnCard(
 
                             Text(
                                 text = barber.fullName,
-                                fontSize = 32.sp,
+                                fontSize = 30.sp,
                                 fontWeight = FontWeight.Black,
                                 color = TextWhite,
-                                lineHeight = 36.sp
+                                lineHeight = 34.sp
                             )
-
-                            Spacer(modifier = Modifier.width(10.dp))
-                            BarberAvailabilityBadge(status = barber.status)
                         }
 
                         Text(
-                            text = barber.role,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium,
+                            text = barber.role.ifEmpty { "Barbero Profesional" },
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
                             color = BarberGold
                         )
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                        // Arrival & Cut Stats
+                        // Arrival & Cut Stats Row
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
+                                    .clip(RoundedCornerShape(8.dp))
                                     .background(TvSurfaceVariant)
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    .border(1.dp, TvBorder, RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
@@ -213,47 +244,57 @@ fun HeroNextTurnCard(
                                         tint = EmeraldLive,
                                         modifier = Modifier.size(14.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Spacer(modifier = Modifier.width(5.dp))
                                     Text(
                                         text = "Entrada: ${barber.horaEntrada ?: "---"}",
-                                        fontSize = 13.sp,
+                                        fontSize = 12.sp,
                                         color = TextWhite,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
 
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
+                                    .clip(RoundedCornerShape(8.dp))
                                     .background(TvSurfaceVariant)
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    .border(1.dp, TvBorder, RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
                             ) {
                                 Text(
                                     text = "Atendidos hoy: ${barber.completedCountToday}",
-                                    fontSize = 13.sp,
-                                    color = TextWhite,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontSize = 12.sp,
+                                    color = BarberGold,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
                     }
                 }
 
-                // Right Side: Action Button "PASAR TURNO"
+                // Right Side: Action Button "PASAR TURNO" with TV Focus Highlight
                 Box(
                     modifier = Modifier
                         .testTag("hero_next_turn_button")
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(18.dp))
                         .background(
-                            Brush.verticalGradient(
-                                listOf(BarberGold, BarberGoldVariant)
-                            )
+                            if (isButtonFocused) {
+                                Brush.verticalGradient(listOf(Color.White, Color(0xFFF8FAFC)))
+                            } else {
+                                Brush.verticalGradient(listOf(BarberGold, BarberGoldVariant))
+                            }
                         )
+                        .border(
+                            width = if (isButtonFocused) 4.dp else 1.dp,
+                            color = if (isButtonFocused) ElectricCyan else BarberGoldVariant,
+                            shape = RoundedCornerShape(18.dp)
+                        )
+                        .onFocusChanged { isButtonFocused = it.isFocused }
+                        .focusable()
                         .clickable { onNextTurn() }
-                        .padding(horizontal = 24.dp, vertical = 18.dp)
+                        .padding(horizontal = 24.dp, vertical = 16.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically
@@ -261,18 +302,19 @@ fun HeroNextTurnCard(
                         Column {
                             Text(
                                 text = "LLEGÓ CLIENTE",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black.copy(alpha = 0.7f)
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (isButtonFocused) Color(0xFF1E293B) else Color.Black.copy(alpha = 0.75f),
+                                letterSpacing = 0.5.sp
                             )
                             Text(
                                 text = "Pasar Turno",
-                                fontSize = 18.sp,
+                                fontSize = 19.sp,
                                 fontWeight = FontWeight.Black,
                                 color = Color.Black
                             )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(14.dp))
                         Icon(
                             imageVector = Icons.Default.ChevronRight,
                             contentDescription = "Pasar turno",
@@ -286,6 +328,3 @@ fun HeroNextTurnCard(
     }
 }
 
-private fun String?.isNull_or_blank(): Boolean {
-    return this == null || this.isBlank()
-}

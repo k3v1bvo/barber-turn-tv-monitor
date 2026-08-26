@@ -2,6 +2,8 @@ package com.example.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,9 +25,14 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -49,32 +56,51 @@ fun ActiveCutsSection(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(TvSurface)
-            .border(1.dp, TvBorder, RoundedCornerShape(20.dp))
-            .padding(20.dp)
+            .border(1.dp, TvBorder, RoundedCornerShape(22.dp))
+            .padding(18.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Header Title
             Row(
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 14.dp)
+                    .padding(bottom = 12.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.ContentCut,
-                    contentDescription = null,
-                    tint = EmeraldLive,
-                    modifier = Modifier.size(22.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "ATENDIENDO EN SILLÓN (${activeBarbers.size})",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextWhite
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.ContentCut,
+                        contentDescription = null,
+                        tint = EmeraldLive,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "ATENDIENDO EN SILLÓN",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = TextWhite,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(EmeraldLive.copy(alpha = 0.2f))
+                        .border(1.dp, EmeraldLive, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "${activeBarbers.size} activos",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = EmeraldLive
+                    )
+                }
             }
 
             if (activeBarbers.isEmpty()) {
@@ -91,7 +117,7 @@ fun ActiveCutsSection(
                             color = TextMuted
                         )
                         Text(
-                            text = "Todos están listos en la fila.",
+                            text = "Todos los barberos están disponibles en la fila.",
                             fontSize = 12.sp,
                             color = BarberGold,
                             modifier = Modifier.padding(top = 4.dp)
@@ -101,7 +127,7 @@ fun ActiveCutsSection(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(
                         items = activeBarbers,
@@ -117,14 +143,22 @@ fun ActiveCutsSection(
 
 @Composable
 fun ActiveBarberItem(barber: Barber) {
+    var isFocused by remember { mutableStateOf(false) }
+
     Box(
         modifier = Modifier
             .testTag("active_barber_${barber.id}")
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(TvSurfaceVariant)
-            .border(1.dp, EmeraldLive.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isFocused) Color(0xFF1E2E3E) else TvSurfaceVariant)
+            .border(
+                width = if (isFocused) 2.dp else 1.dp,
+                color = if (isFocused) EmeraldLive else Color(0x2510B981),
+                shape = RoundedCornerShape(14.dp)
+            )
+            .onFocusChanged { isFocused = it.isFocused }
+            .focusable()
+            .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -132,18 +166,18 @@ fun ActiveBarberItem(barber: Barber) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Avatar with Emerald Pulse Dot
+                // Avatar
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
-                        .background(EmeraldLive)
+                        .background(EmeraldLive.copy(alpha = 0.3f))
                         .padding(2.dp)
                         .clip(CircleShape)
-                        .background(Color.Gray),
+                        .background(Color(0xFF27272A)),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (!barber.avatarUrl.isNull_or_blank()) {
+                    if (!barber.avatarUrl.isNullOrBlank()) {
                         AsyncImage(
                             model = barber.avatarUrl,
                             contentDescription = barber.fullName,
@@ -151,11 +185,12 @@ fun ActiveBarberItem(barber: Barber) {
                             contentScale = ContentScale.Crop
                         )
                     } else {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = TextWhite,
-                            modifier = Modifier.size(24.dp)
+                        val initial = barber.fullName.firstOrNull()?.uppercaseChar()?.toString() ?: "B"
+                        Text(
+                            text = initial,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = EmeraldLive
                         )
                     }
                 }
@@ -189,14 +224,15 @@ fun ActiveBarberItem(barber: Barber) {
 
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .background(EmeraldLive.copy(alpha = 0.15f))
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                    .border(1.dp, EmeraldLive.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
                 Text(
                     text = barber.currentService ?: "EN CORTE",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     color = EmeraldLive
                 )
             }
@@ -204,6 +240,3 @@ fun ActiveBarberItem(barber: Barber) {
     }
 }
 
-private fun String?.isNull_or_blank(): Boolean {
-    return this == null || this.isBlank()
-}
