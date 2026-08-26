@@ -179,8 +179,12 @@ fun ActiveBarberItem(barber: Barber) {
                 ) {
                     val photoUrl = barber.avatarUrl?.ifBlank { null } ?: barber.selfieUrl
                     if (!photoUrl.isNullOrBlank()) {
+                        val context = androidx.compose.ui.platform.LocalContext.current
                         AsyncImage(
-                            model = photoUrl,
+                            model = coil.request.ImageRequest.Builder(context)
+                                .data(photoUrl)
+                                .crossfade(true)
+                                .build(),
                             contentDescription = barber.fullName,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop

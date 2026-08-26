@@ -269,8 +269,12 @@ fun FloatingBubbleUi(
                         ) {
                             val photoUrl = currentBarber?.avatarUrl?.ifBlank { null } ?: currentBarber?.selfieUrl
                             if (!photoUrl.isNullOrBlank()) {
+                                val context = androidx.compose.ui.platform.LocalContext.current
                                 AsyncImage(
-                                    model = photoUrl,
+                                    model = coil.request.ImageRequest.Builder(context)
+                                        .data(photoUrl)
+                                        .crossfade(true)
+                                        .build(),
                                     contentDescription = currentBarber?.fullName,
                                     modifier = Modifier
                                         .size(42.dp)

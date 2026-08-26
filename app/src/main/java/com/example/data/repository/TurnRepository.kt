@@ -58,40 +58,21 @@ class TurnRepository {
     }
 
     /**
-     * Formats an ISO-8601 timestamp (e.g. "2026-08-26T08:45:12-04:00") into
-     * an attractive 12-hour format: "08:45 AM"
+     * Resolves any image URL (full URL or Supabase Storage relative path)
+     * into a complete, loadable HTTPS URL.
      */
-    fun formatHoraLlegada(horaIso: String?): String {
-        if (horaIso.isNullOrBlank()) return "Pendiente"
-        return try {
-            if (horaIso.contains("T")) {
-                val odt = OffsetDateTime.parse(horaIso)
-                val formatter = DateTimeFormatter.ofPattern("hh:mm a", Locale.forLanguageTag("es-BO"))
-                odt.format(formatter).uppercase()
-            } else if (horaIso.contains(":")) {
-                val parts = horaIso.split(":")
-                val hour = parts[0].toIntOrNull() ?: 0
-                val min = parts.getOrNull(1) ?: "00"
-                val ampm = if (hour >= 12) "PM" else "AM"
-                val displayHour = when {
-                    hour == 0 -> 12
-                    hour > 12 -> hour - 12
-                    else -> hour
-                }
-                String.format(Locale.US, "%02d:%s %s", displayHour, min, ampm)
-            } else {
-                horaIso
-            }
-        } catch (e: Exception) {
-            try {
-                val instant = Instant.parse(horaIso)
-                val zdt = instant.atZone(ZoneOffset.ofHours(-4))
-                val formatter = DateTimeFormatter.ofPattern("hh:mm a", Locale.forLanguageTag("es-BO"))
-                zdt.format(formatter).uppercase()
-            } catch (_: Exception) {
-                val timePart = horaIso.substringAfter("T").take(5)
-                if (timePart.isNotBlank()) timePart else horaIso
-            }
+    fun resolveImageUrl(rawUrl: String?, baseUrl: String): String? {
+        if (rawUrl.isNullOrBlank()) return null
+        val trimmed = rawUrl.trim()
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return trimmed
+        }
+        val cleanBase = baseUrl.trim().removeSuffix("/")
+        return when {
+            trimmed.startsWith("asistencias-selfies/") -> "$cleanBase/storage/v1/object/public/$trimmed"
+            trimmed.startsWith("avatars/") || trimmed.startsWith("perfiles/") -> "$cleanBase/storage/v1/object/public/$trimmed"
+            trimmed.contains("/") -> "$cleanBase/storage/v1/object/public/asistencias-selfies/$trimmed"
+            else -> "$cleanBase/storage/v1/object/public/avatars/$trimmed"
         }
     }
 
@@ -227,12 +208,41 @@ class TurnRepository {
                 }
             }
 
+            // 2. Fetch full profiles map to guarantee photos and names even if nested join fails
+            val endpointProfiles = "${settings.url.trim().removeSuffix("/")}/rest/v1/profiles"
+            val profilesMap = try {
+                val pResp = api.getProfiles(
+                    url = endpointProfiles,
+                    apiKey = settings.apiKey,
+                    authHeader = authHeader
+                )
+                if (pResp.isSuccessful) {
+                    (pResp.body() ?: emptyList()).filter { !it.id.isNullOrBlank() }.associateBy { it.id!! }
+                } else {
+                    emptyMap()
+                }
+            } catch (e: Exception) {
+                emptyMap()
+            }
+
             // Build Barber list
             val allPresentBarbers: List<Barber> = if (presentAsistencias.isNotEmpty()) {
                 presentAsistencias.map { asistencia ->
                     val bId = asistencia.profileId ?: asistencia.barberoId ?: asistencia.profiles?.id ?: "unknown"
-                    val name = asistencia.profiles?.fullName?.ifBlank { null } ?: "Barbero #${bId.takeLast(4)}"
-                    val avatar = asistencia.profiles?.avatarUrl?.ifBlank { null } ?: asistencia.selfieUrl
+                    val prof = asistencia.profiles ?: profilesMap[bId] ?: profilesMap[asistencia.profileId] ?: profilesMap[asistencia.barberoId]
+
+                    val name = prof?.fullName?.ifBlank { null }
+                        ?: asistencia.profiles?.fullName?.ifBlank { null }
+                        ?: "Barbero #${bId.takeLast(4)}"
+
+                    val rawAvatar = prof?.avatarUrl?.ifBlank { null }
+                        ?: asistencia.profiles?.avatarUrl?.ifBlank { null }
+                    val rawSelfie = asistencia.selfieUrl?.ifBlank { null }
+
+                    val resolvedAvatar = resolveImageUrl(rawAvatar, settings.url)
+                    val resolvedSelfie = resolveImageUrl(rawSelfie, settings.url)
+                    val finalAvatar = resolvedAvatar ?: resolvedSelfie
+
                     val rawArrival = asistencia.horaEntrada ?: ""
                     val formattedArrival = com.example.util.TimeUtils.formatearHoraBolivia(rawArrival)
                     val completed = completedCountMap[bId] ?: 0
@@ -249,9 +259,9 @@ class TurnRepository {
                     Barber(
                         id = bId,
                         fullName = name,
-                        avatarUrl = avatar,
-                        selfieUrl = asistencia.selfieUrl,
-                        role = asistencia.profiles?.role ?: "barbero",
+                        avatarUrl = finalAvatar,
+                        selfieUrl = resolvedSelfie,
+                        role = prof?.role ?: asistencia.profiles?.role ?: "barbero",
                         horaEntrada = formattedArrival,
                         rawHoraEntrada = rawArrival,
                         enAlmuerzo = isAlmuerzo,
@@ -264,42 +274,34 @@ class TurnRepository {
                 }
             } else {
                 // Fetch registered barbers from profiles table if no attendance recorded yet
-                try {
-                    val endpointProfiles = "${settings.url.trim().removeSuffix("/")}/rest/v1/profiles"
-                    val profResp = api.getProfiles(
-                        url = endpointProfiles,
-                        apiKey = settings.apiKey,
-                        authHeader = authHeader
-                    )
-                    val profList = profResp.body() ?: emptyList()
-                    val filteredProf = profList.filter {
-                        (it.role?.lowercase() ?: "barbero") == "barbero" || it.role.isNullOrBlank()
-                    }
-                    filteredProf.map { prof ->
-                        val bId = prof.id ?: "unknown"
-                        val name = prof.fullName?.ifBlank { null } ?: "Barbero #${bId.takeLast(4)}"
-                        val completed = completedCountMap[bId] ?: 0
-                        val lastComp = lastCompletedAtMap[bId]
-                        val activeInfo = activeCitasMap[bId]
+                val profList = profilesMap.values.toList()
+                val filteredProf = profList.filter {
+                    (it.role?.lowercase() ?: "barbero") == "barbero" || it.role.isNullOrBlank()
+                }
+                filteredProf.map { prof ->
+                    val bId = prof.id ?: "unknown"
+                    val name = prof.fullName?.ifBlank { null } ?: "Barbero #${bId.takeLast(4)}"
+                    val completed = completedCountMap[bId] ?: 0
+                    val lastComp = lastCompletedAtMap[bId]
+                    val activeInfo = activeCitasMap[bId]
 
-                        Barber(
-                            id = bId,
-                            fullName = name,
-                            avatarUrl = prof.avatarUrl,
-                            selfieUrl = null,
-                            role = prof.role ?: "barbero",
-                            horaEntrada = "Pendiente",
-                            rawHoraEntrada = null,
-                            enAlmuerzo = false,
-                            completedCountToday = completed,
-                            lastCompletedAt = lastComp,
-                            status = if (activeInfo != null) BarberStatus.EN_CORTE else BarberStatus.DISPONIBLE,
-                            activeClientName = activeInfo?.first,
-                            currentService = activeInfo?.second
-                        )
-                    }
-                } catch (e: Exception) {
-                    emptyList()
+                    val resolvedAvatar = resolveImageUrl(prof.avatarUrl, settings.url)
+
+                    Barber(
+                        id = bId,
+                        fullName = name,
+                        avatarUrl = resolvedAvatar,
+                        selfieUrl = null,
+                        role = prof.role ?: "barbero",
+                        horaEntrada = "Pendiente",
+                        rawHoraEntrada = null,
+                        enAlmuerzo = false,
+                        completedCountToday = completed,
+                        lastCompletedAt = lastComp,
+                        status = if (activeInfo != null) BarberStatus.EN_CORTE else BarberStatus.DISPONIBLE,
+                        activeClientName = activeInfo?.first,
+                        currentService = activeInfo?.second
+                    )
                 }
             }
 
