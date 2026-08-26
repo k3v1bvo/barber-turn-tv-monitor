@@ -99,12 +99,7 @@ class TurnRepository {
         settings: SupabaseSettings,
         currentLocalOffset: Int
     ): TurnBoardState {
-        val boliviaDate = try {
-            LocalDate.now(ZoneOffset.ofHours(-4)).toString()
-        } catch (e: Exception) {
-            SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        }
-        val todayStr = boliviaDate
+        val todayStr = com.example.util.TimeUtils.getFechaHoyBolivia()
         val lastRefreshStr = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
 
         if (settings.url.isBlank() || settings.apiKey.isBlank()) {
@@ -239,7 +234,7 @@ class TurnRepository {
                     val name = asistencia.profiles?.fullName?.ifBlank { null } ?: "Barbero #${bId.takeLast(4)}"
                     val avatar = asistencia.profiles?.avatarUrl?.ifBlank { null } ?: asistencia.selfieUrl
                     val rawArrival = asistencia.horaEntrada ?: ""
-                    val formattedArrival = formatHoraLlegada(rawArrival)
+                    val formattedArrival = com.example.util.TimeUtils.formatearHoraBolivia(rawArrival)
                     val completed = completedCountMap[bId] ?: 0
                     val lastComp = lastCompletedAtMap[bId]
                     val activeInfo = activeCitasMap[bId]
@@ -382,12 +377,7 @@ class TurnRepository {
             val endpointConfigTurnos = "${settings.url.trim().removeSuffix("/")}/rest/v1/config_turnos"
             val endpointRotacion = "${settings.url.trim().removeSuffix("/")}/rest/v1/turnos_rotacion"
 
-            val boliviaDate = try {
-                LocalDate.now(ZoneOffset.ofHours(-4)).toString()
-            } catch (e: Exception) {
-                SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-            }
-            val todayStr = boliviaDate
+            val todayStr = com.example.util.TimeUtils.getFechaHoyBolivia()
             val isoNow = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()).format(Date())
 
             try {

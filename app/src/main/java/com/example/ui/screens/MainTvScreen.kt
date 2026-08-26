@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -12,17 +13,21 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -46,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -107,142 +113,226 @@ fun MainTvScreen(
         label = "pulseAlpha"
     )
 
+    val configuration = LocalConfiguration.current
+    val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = TvBackground
     ) { innerPadding ->
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            val isNarrowScreen = maxWidth < 650.dp || isPortrait
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(TvBackground)
             ) {
                 // =========================================================================
-                // 1. TOP HEADER BAR
+                // 1. TOP HEADER BAR (RESPONSIVE)
                 // =========================================================================
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = TvSurface,
                     border = BorderStroke(1.dp, Color(0x332E3D60))
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Left: Shop Name & Status
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(BarberGold),
-                                contentAlignment = Alignment.Center
+                    if (isNarrowScreen) {
+                        // Portrait Header: 2 compact rows
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(text = "💈", fontSize = 18.sp)
-                            }
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            Column {
-                                Text(
-                                    text = turnState.shopName.ifBlank { "BarberSite - Control de Turnos" },
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextWhite
-                                )
-
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(top = 2.dp)
-                                ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(
                                         modifier = Modifier
-                                            .size(8.dp)
+                                            .size(32.dp)
                                             .clip(CircleShape)
-                                            .background(EmeraldLive.copy(alpha = pulseAlpha))
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "EN VIVO • SUPABASE REALTIME",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = EmeraldLive
-                                    )
-                                    if (turnState.lastRefreshTime.isNotEmpty()) {
+                                            .background(BarberGold),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(text = "💈", fontSize = 16.sp)
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
                                         Text(
-                                            text = " (${turnState.lastRefreshTime})",
-                                            fontSize = 11.sp,
-                                            color = TextMuted
+                                            text = turnState.shopName.ifBlank { "BarberSite" },
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextWhite
+                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(6.dp)
+                                                    .clip(CircleShape)
+                                                    .background(EmeraldLive.copy(alpha = pulseAlpha))
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "EN VIVO",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = EmeraldLive
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Button(
+                                        onClick = { viewModel.fetchState() },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0x3338BDF8),
+                                            contentColor = ElectricCyan
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.height(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = "Refrescar",
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Button(
+                                        onClick = { viewModel.openSettingsDialog() },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0x33FBBF24),
+                                            contentColor = BarberGold
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.height(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Settings,
+                                            contentDescription = "Ajustes",
+                                            modifier = Modifier.size(14.dp)
                                         )
                                     }
                                 }
                             }
                         }
-
-                        // Right: Clock & Quick Actions
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(
-                                horizontalAlignment = Alignment.End,
-                                modifier = Modifier.padding(end = 16.dp)
-                            ) {
-                                Text(
-                                    text = currentTimeStr,
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = BarberGold
-                                )
-                                Text(
-                                    text = currentDateStr,
-                                    fontSize = 11.sp,
-                                    color = TextMuted
-                                )
+                    } else {
+                        // Landscape Header: 1 wide row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(BarberGold),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(text = "💈", fontSize = 18.sp)
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = turnState.shopName.ifBlank { "BarberSite - Control de Turnos" },
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextWhite
+                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(EmeraldLive.copy(alpha = pulseAlpha))
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "EN VIVO • SUPABASE REALTIME",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = EmeraldLive
+                                        )
+                                        if (turnState.lastRefreshTime.isNotEmpty()) {
+                                            Text(
+                                                text = " (${turnState.lastRefreshTime})",
+                                                fontSize = 11.sp,
+                                                color = TextMuted
+                                            )
+                                        }
+                                    }
+                                }
                             }
 
-                            // Refresh button
-                            Button(
-                                onClick = { viewModel.fetchState() },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0x3338BDF8),
-                                    contentColor = ElectricCyan
-                                ),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.height(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = "Refrescar",
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Refrescar", fontSize = 12.sp)
-                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    modifier = Modifier.padding(end = 16.dp)
+                                ) {
+                                    Text(
+                                        text = currentTimeStr,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = BarberGold
+                                    )
+                                    Text(
+                                        text = currentDateStr,
+                                        fontSize = 11.sp,
+                                        color = TextMuted
+                                    )
+                                }
 
-                            Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = { viewModel.fetchState() },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0x3338BDF8),
+                                        contentColor = ElectricCyan
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = "Refrescar",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Refrescar", fontSize = 12.sp)
+                                }
 
-                            // Settings button
-                            Button(
-                                onClick = { viewModel.openSettingsDialog() },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0x33FBBF24),
-                                    contentColor = BarberGold
-                                ),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.height(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Settings,
-                                    contentDescription = "Ajustes",
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Ajustes", fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Button(
+                                    onClick = { viewModel.openSettingsDialog() },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0x33FBBF24),
+                                        contentColor = BarberGold
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Settings,
+                                        contentDescription = "Ajustes",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Ajustes", fontSize = 12.sp)
+                                }
                             }
                         }
                     }
@@ -254,7 +344,7 @@ fun MainTvScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(CrimsonAlert)
-                            .padding(horizontal = 20.dp, vertical = 6.dp)
+                            .padding(horizontal = 16.dp, vertical = 6.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -275,7 +365,6 @@ fun MainTvScreen(
                                     color = TextWhite
                                 )
                             }
-
                             Button(
                                 onClick = { viewModel.openSettingsDialog() },
                                 colors = ButtonDefaults.buttonColors(
@@ -283,19 +372,19 @@ fun MainTvScreen(
                                     contentColor = TextWhite
                                 )
                             ) {
-                                Text("Configurar Supabase", fontSize = 11.sp)
+                                Text("Configurar", fontSize = 11.sp)
                             }
                         }
                     }
                 }
 
                 // =========================================================================
-                // 2. HERO BANNER: FLOATING SYSTEM BUBBLE TOGGLE (MESSENGER STYLE)
+                // 2. HERO BANNER: FLOATING BUBBLE OVERLAY ACTION (RESPONSIVE)
                 // =========================================================================
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                        .padding(horizontal = if (isNarrowScreen) 12.dp else 20.dp, vertical = 8.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(
                             Brush.horizontalGradient(
@@ -310,106 +399,185 @@ fun MainTvScreen(
                             if (isFloatingBubbleRunning) EmeraldLive else BarberGold.copy(alpha = 0.5f),
                             RoundedCornerShape(14.dp)
                         )
-                        .padding(horizontal = 18.dp, vertical = 12.dp)
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(text = "🫧", fontSize = 28.sp)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = "MODO BURBUJA FLOTANTE (SOBRE OTRAS APPS)",
-                                    color = if (isFloatingBubbleRunning) EmeraldLive else BarberGold,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 0.5.sp
+                    if (isNarrowScreen) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = "🫧", fontSize = 22.sp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "BURBUJA FLOTANTE",
+                                        color = if (isFloatingBubbleRunning) EmeraldLive else BarberGold,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Text(
+                                        text = if (isFloatingBubbleRunning)
+                                            "🟢 Activo: Flotando sobre YouTube/Netflix"
+                                        else
+                                            "Muestra los turnos encima de otras apps",
+                                        color = TextWhite.copy(alpha = 0.85f),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = onToggleFloatingBubble,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isFloatingBubbleRunning) CrimsonAlert else BarberGold,
+                                    contentColor = Color.Black
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(38.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isFloatingBubbleRunning) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(16.dp)
                                 )
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = if (isFloatingBubbleRunning)
-                                        "🟢 Activo: Los turnos se muestran flotando encima de YouTube, Netflix, o el menú de la TV"
-                                    else
-                                        "Muestra una burbuja flotante como Messenger encima de cualquier app mientras usas la TV o celular con normalidad.",
-                                    color = TextWhite.copy(alpha = 0.9f),
-                                    fontSize = 12.sp
+                                    text = if (isFloatingBubbleRunning) "DESACTIVAR BURBUJA" else "ACTIVAR BURBUJA FLOTANTE",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Black
                                 )
                             }
                         }
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        Button(
-                            onClick = onToggleFloatingBubble,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isFloatingBubbleRunning) CrimsonAlert else BarberGold,
-                                contentColor = Color.Black
-                            ),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.height(44.dp)
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = if (isFloatingBubbleRunning) Icons.Default.Stop else Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                tint = Color.Black,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (isFloatingBubbleRunning) "DESACTIVAR BURBUJA" else "ACTIVAR BURBUJA FLOTANTE",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Black
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(text = "🫧", fontSize = 28.sp)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "MODO BURBUJA FLOTANTE (SOBRE OTRAS APPS)",
+                                        color = if (isFloatingBubbleRunning) EmeraldLive else BarberGold,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Black,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                    Text(
+                                        text = if (isFloatingBubbleRunning)
+                                            "🟢 Activo: Los turnos se muestran flotando encima de YouTube, Netflix, o el menú de la TV"
+                                        else
+                                            "Muestra una burbuja flotante como Messenger encima de cualquier app mientras usas la TV o celular con normalidad.",
+                                        color = TextWhite.copy(alpha = 0.9f),
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(16.dp))
+
+                            Button(
+                                onClick = onToggleFloatingBubble,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isFloatingBubbleRunning) CrimsonAlert else BarberGold,
+                                    contentColor = Color.Black
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.height(44.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isFloatingBubbleRunning) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isFloatingBubbleRunning) "DESACTIVAR BURBUJA" else "ACTIVAR BURBUJA FLOTANTE",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
                         }
                     }
                 }
 
                 // =========================================================================
-                // 3. MAIN TURN BOARD BODY
+                // 3. MAIN TURN BOARD BODY (ADAPTIVE: SCROLLABLE ON PORTRAIT / GRID ON LANDSCAPE)
                 // =========================================================================
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 20.dp, vertical = 6.dp)
-                ) {
-                    // Barbero en Turno #1
-                    HeroNextTurnCard(
-                        barber = nextBarberInTurn,
-                        onNextTurn = { viewModel.nextTurn() },
+                if (isNarrowScreen) {
+                    // MÓVIL VERTICAL: Scrollable Column with vertical sections
+                    val scrollState = rememberScrollState()
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(160.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Columns: Queue List & Active Cuts
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            .weight(1f)
+                            .verticalScroll(scrollState)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Left: Remaining Queue (#2, #3, #4...)
+                        HeroNextTurnCard(
+                            barber = nextBarberInTurn,
+                            onNextTurn = { viewModel.nextTurn() },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
                         QueueListSection(
                             queuedBarbers = turnState.queuedBarbers,
                             modifier = Modifier
-                                .weight(1.3f)
-                                .fillMaxSize()
+                                .fillMaxWidth()
+                                .heightIn(min = 280.dp, max = 400.dp)
                         )
 
-                        // Right: Active Barber Cuts ("EN SILLÓN")
                         ActiveCutsSection(
                             activeBarbers = turnState.activeBarbers,
                             modifier = Modifier
-                                .weight(1f)
-                                .fillMaxSize()
+                                .fillMaxWidth()
+                                .heightIn(min = 200.dp, max = 340.dp)
                         )
+                    }
+                } else {
+                    // TV BOX / HORIZONTAL: Side-by-Side Grid
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 20.dp, vertical = 6.dp)
+                    ) {
+                        HeroNextTurnCard(
+                            barber = nextBarberInTurn,
+                            onNextTurn = { viewModel.nextTurn() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            QueueListSection(
+                                queuedBarbers = turnState.queuedBarbers,
+                                modifier = Modifier
+                                    .weight(1.3f)
+                                    .fillMaxSize()
+                            )
+
+                            ActiveCutsSection(
+                                activeBarbers = turnState.activeBarbers,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxSize()
+                            )
+                        }
                     }
                 }
 
