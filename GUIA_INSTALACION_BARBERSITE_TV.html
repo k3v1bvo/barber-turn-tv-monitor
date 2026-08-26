@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guía Oficial de Instalación - BarberSite TV & Celular</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0F172A;
+            --surface: #1E293B;
+            --surface-card: #151E33;
+            --gold: #F59E0B;
+            --gold-light: #FDE68A;
+            --cyan: #38BDF8;
+            --emerald: #10B981;
+            --text-white: #F8FAFC;
+            --text-muted: #94A3B8;
+            --border: #334155;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-white);
+            line-height: 1.6;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: var(--surface);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            padding: 40px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 25px;
+            margin-bottom: 35px;
+        }
+
+        .header .badge {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--gold), #D97706);
+            color: #000;
+            font-weight: 900;
+            font-size: 13px;
+            padding: 6px 16px;
+            border-radius: 50px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 900;
+            color: var(--text-white);
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 15px;
+        }
+
+        .print-btn {
+            background: var(--gold);
+            color: #000;
+            font-weight: 800;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 15px;
+            transition: all 0.2s ease;
+        }
+
+        .print-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(245, 158, 11, 0.4);
+        }
+
+        h2 {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--gold-light);
+            margin-top: 35px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-left: 4px solid var(--gold);
+            padding-left: 12px;
+        }
+
+        h3 {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--cyan);
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        p, li {
+            font-size: 14px;
+            color: #CBD5E1;
+            margin-bottom: 10px;
+        }
+
+        ul, ol {
+            padding-left: 24px;
+            margin-bottom: 16px;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        .card {
+            background: var(--surface-card);
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            padding: 20px;
+            margin: 16px 0;
+        }
+
+        .card.tip {
+            border-color: var(--cyan);
+            background: rgba(56, 189, 248, 0.08);
+        }
+
+        .card.emerald {
+            border-color: var(--emerald);
+            background: rgba(16, 185, 129, 0.08);
+        }
+
+        .code-box {
+            background: #090D16;
+            border: 1px solid #1E293B;
+            border-radius: 10px;
+            padding: 14px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            color: var(--emerald);
+            margin: 12px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            overflow-x: auto;
+        }
+
+        .code-box code {
+            font-family: inherit;
+        }
+
+        .tag {
+            display: inline-block;
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--gold);
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        @media print {
+            body {
+                background: #FFF;
+                color: #000;
+                padding: 0;
+            }
+            .container {
+                max-width: 100%;
+                box-shadow: none;
+                border: none;
+                padding: 20px;
+                background: #FFF;
+            }
+            .print-btn {
+                display: none;
+            }
+            .header h1 {
+                color: #000;
+            }
+            h2 {
+                color: #B45309;
+                border-left-color: #B45309;
+            }
+            h3 {
+                color: #0369A1;
+            }
+            p, li {
+                color: #334155;
+            }
+            .card {
+                background: #F8FAFC;
+                border-color: #E2E8F0;
+            }
+            .code-box {
+                background: #F1F5F9;
+                color: #047857;
+                border-color: #CBD5E1;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div class="badge">💈 Documento Técnico Oficial</div>
+        <h1>Guía de Instalación y Configuración</h1>
+        <p><strong>BarberSite TV Monitor & Burbuja Flotante</strong> • Soporte para Android TV, Xiaomi Mi Box, Skyworth y Celulares</p>
+        <button class="print-btn" onclick="window.print()">
+            🖨️ Imprimir / Guardar como PDF
+        </button>
+    </div>
+
+    <h2>1. Métodos de Instalación del APK</h2>
+
+    <h3>🚀 Método A: Conexión Inalámbrica («Send Files to TV» - Recomendado)</h3>
+    <p><em>Ideal para televisores montados en la pared donde es difícil conectar una memoria USB por detrás.</em></p>
+    <ol>
+        <li><strong>En la Smart TV (Skyworth / Xiaomi / Google TV):</strong>
+            <ul>
+                <li>Abre la <strong>Google Play Store</strong> de la TV.</li>
+                <li>Busca e instala: <strong>«Send Files to TV»</strong> y un explorador como <strong>«File Commander»</strong> (o <em>X-plore</em>).</li>
+                <li>Abre <em>Send Files to TV</em> en la TV y pulsa <strong>RECEIVE (Recibir)</strong>.</li>
+            </ul>
+        </li>
+        <li><strong>En tu Celular:</strong>
+            <ul>
+                <li>Conéctate a la <strong>misma red Wi-Fi</strong> que la TV.</li>
+                <li>Abre <em>Send Files to TV</em> en tu celular, pulsa <strong>SEND (Enviar)</strong>, selecciona el archivo <code>app-debug.apk</code> y toca sobre el nombre de tu TV en la lista.</li>
+            </ul>
+        </li>
+        <li><strong>Instalación:</strong>
+            <ul>
+                <li>Al terminar la transferencia, abre el APK desde la app o ve con <em>File Commander</em> a la carpeta <strong>Download</strong> y dale a <strong>Instalar</strong>.</li>
+            </ul>
+        </li>
+    </ol>
+
+    <h3>🔌 Método B: Mediante Pendrive / Memoria USB</h3>
+    <ol>
+        <li>Copia el archivo <code>app-debug.apk</code> a la memoria USB.</li>
+        <li>Conecta el USB en el puerto de la Smart TV o TV Box.</li>
+        <li>Abre el <strong>Explorador de Archivos</strong> de la TV (<em>Archivos</em>, <em>Media Player</em> o <em>File Commander</em>).</li>
+        <li>Selecciona el archivo APK y presiona <strong>OK</strong> en el control remoto.</li>
+        <li>Si la TV muestra el aviso de seguridad <em>«Orígenes desconocidos»</em>, entra a <strong>Ajustes</strong> ➔ activa el permiso para el explorador ➔ vuelve y pulsa <strong>Instalar</strong>.</li>
+    </ol>
+
+    <div class="card tip">
+        <strong>📱 Método C (En Celulares Android):</strong> Simplemente transfiere el APK por WhatsApp, Telegram o cable USB y tócalo para instalar normalmente.
+    </div>
+
+    <h2>2. Conexión en Tiempo Real con Supabase</h2>
+    <p>Para que la TV muestre los turnos, fotos y barberos de la barbería en tiempo real:</p>
+    <ol>
+        <li>Abre la aplicación <strong>BarberSite TV</strong>.</li>
+        <li>Con las flechas del control remoto, selecciona el botón <strong>«Ajustes» ⚙️</strong> arriba a la derecha.</li>
+        <li>Completa los datos de tu local:
+            <ul>
+                <li><strong>Modo Demo:</strong> Desactívalo para sincronizar con la base de datos real.</li>
+                <li><strong>Nombre de la Barbería:</strong> El nombre de tu negocio.</li>
+                <li><strong>URL Servidor / Supabase:</strong> Tu URL (ej: <code>https://tu-proyecto.supabase.co</code>).</li>
+                <li><strong>Supabase Anon Key:</strong> Tu clave pública de Supabase.</li>
+            </ul>
+        </li>
+        <li>Presiona <strong>«Guardar y Conectar»</strong>.</li>
+    </ol>
+
+    <div class="card tip">
+        <strong>💡 Truco para escribir en la TV:</strong> Instala la app gratuita <strong>«Google TV»</strong> en tu celular. Podrás usar el teclado táctil de tu teléfono para copiar y pegar la URL y API Key en la pantalla de la TV en 1 segundo.
+    </div>
+
+    <h2>3. Activación de la Burbuja Flotante (Sobre YouTube/Netflix)</h2>
+    <p>Permite que el turno del barbero flote en una esquina mientras la TV reproduce videos de YouTube o series de Netflix.</p>
+    <ol>
+        <li>Selecciona el botón dorado: <strong>«ACTIVAR BURBUJA FLOTANTE»</strong>.</li>
+        <li>Se abrirá la ventana de asistencia para TV:
+            <ul>
+                <li>👉 <strong>Opción 1 («Iniciar Directo»):</strong> Púlsalo primero. En la gran mayoría de TV Boxes y TVs genéricas, la burbuja aparecerá al instante.</li>
+                <li>👉 <strong>Opción 2 («Abrir Ajustes»):</strong> Si la TV lo exige, te llevará a los ajustes. Ve a <em>Permisos</em> ➔ activa <strong>«Mostrar sobre otras aplicaciones»</strong>.</li>
+            </ul>
+        </li>
+    </ol>
+
+    <h2>4. Guía de Emergencia por ADB (Para TVs con Menú Bloqueado)</h2>
+    <p><em>Utiliza este método únicamente si una TV genérica tiene el menú de permisos bloqueado de fábrica.</em></p>
+
+    <h3>Paso 1: Ver la IP de la TV en 5 segundos</h3>
+    <ul>
+        <li>En la TV ve a <strong>Ajustes ⚙️ ➔ Red e Internet (o Wi-Fi)</strong> ➔ Toca tu red y copia la <strong>Dirección IP</strong> (ej: <code>192.168.1.45</code>).</li>
+    </ul>
+
+    <h3>Paso 2: Activar Opciones de Desarrollador en la TV</h3>
+    <ul>
+        <li>Ve a <strong>Ajustes ➔ Información (Acerca de) ➔ Número de compilación</strong> y presiona el botón <strong>OK 7 veces seguidas</strong>.</li>
+        <li>Entra a <strong>Opciones de desarrollador</strong> y activa <strong>«Depuración de red / USB»</strong>.</li>
+    </ul>
+
+    <h3>Paso 3: Enviar el comando desde tu celular</h3>
+    <ol>
+        <li>En tu celular (mismo Wi-Fi), instala la app gratuita <strong>«Bugjaeger»</strong> o <strong>«Remote ADB Shell»</strong>.</li>
+        <li>Ingresa la IP de la TV y pulsa <strong>Connect</strong> (en la TV saldrá un aviso, dale <em>Aceptar</em>).</li>
+        <li>En la consola de comandos de tu celular, pega esta línea y presiona Enter:</li>
+    </ol>
+
+    <div class="code-box">
+        <code>appops set com.aistudio.barberturnostv.kxmpzq SYSTEM_ALERT_WINDOW allow</code>
+    </div>
+
+    <h2>5. Preguntas Frecuentes y Garantías</h2>
+    <div class="card emerald">
+        <p>✅ <strong>Pantalla Siempre Activa:</strong> La app incluye <code>FLAG_KEEP_SCREEN_ON</code> para que la TV nunca se apague ni entre en reposo durante el horario laboral.</p>
+        <p>✅ <strong>Hora Exacta de Bolivia (UTC-4):</strong> Con el módulo <code>TimeUtils</code> oficial de Bolivia, las horas de entrada nunca tendrán desfase.</p>
+        <p>✅ <strong>Optimización para TVs Básicas:</strong> Fotos muestreadas a 120px para no consumir más de 100 KB de RAM, garantizando fluidez total en TVs de 1 GB de RAM.</p>
+    </div>
+
+    <p style="text-align: center; color: var(--text-muted); font-size: 12px; margin-top: 30px;">
+        © 2026 BarberSite TV • Sistema de Control de Turnos en Tiempo Real
+    </p>
+</div>
+
+</body>
+</html>
