@@ -2,6 +2,8 @@ package com.example.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,14 +18,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +49,10 @@ fun TvOverlayPermissionDialog(
     onTryDirectStart: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    var isCancelFocused by remember { mutableStateOf(false) }
+    var isDirectFocused by remember { mutableStateOf(false) }
+    var isSettingsFocused by remember { mutableStateOf(false) }
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
@@ -100,7 +110,7 @@ fun TvOverlayPermissionDialog(
                 ) {
                     Column {
                         Text(
-                            text = "📺 Pasos para Xiaomi TV Box:",
+                            text = "📺 Pasos para Xiaomi TV Box / Skyworth:",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = ElectricCyan
@@ -117,40 +127,76 @@ fun TvOverlayPermissionDialog(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
+                // High-Contrast D-Pad Focusable Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(
-                        onClick = onDismiss,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = TextMuted)
+                    // Cancel Button
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isCancelFocused) Color(0xFF334155) else Color.Transparent)
+                            .border(
+                                width = if (isCancelFocused) 2.dp else 1.dp,
+                                color = if (isCancelFocused) ElectricCyan else Color(0x33FFFFFF),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .onFocusChanged { isCancelFocused = it.isFocused }
+                            .focusable()
+                            .clickable { onDismiss() }
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
                     ) {
-                        Text("Cancelar", fontSize = 12.sp)
+                        Text("Cancelar", fontSize = 12.sp, color = if (isCancelFocused) TextWhite else TextMuted)
                     }
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                    Button(
-                        onClick = onTryDirectStart,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B), contentColor = EmeraldLive),
-                        shape = RoundedCornerShape(8.dp)
+                    // Direct Start Button
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isDirectFocused) Color(0xFF064E3B) else Color(0xFF1E293B))
+                            .border(
+                                width = if (isDirectFocused) 3.dp else 1.dp,
+                                color = if (isDirectFocused) ElectricCyan else EmeraldLive.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .onFocusChanged { isDirectFocused = it.isFocused }
+                            .focusable()
+                            .clickable { onTryDirectStart() }
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Iniciar Directo", fontSize = 12.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = EmeraldLive, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Iniciar Directo", fontSize = 12.sp, color = TextWhite, fontWeight = FontWeight.Bold)
+                        }
                     }
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                    Button(
-                        onClick = onOpenSettings,
-                        colors = ButtonDefaults.buttonColors(containerColor = BarberGold, contentColor = Color.Black),
-                        shape = RoundedCornerShape(8.dp)
+                    // Open Settings Button
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSettingsFocused) Color.White else BarberGold)
+                            .border(
+                                width = if (isSettingsFocused) 3.dp else 1.dp,
+                                color = if (isSettingsFocused) ElectricCyan else BarberGold,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .onFocusChanged { isSettingsFocused = it.isFocused }
+                            .focusable()
+                            .clickable { onOpenSettings() }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
-                        Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Abrir Ajustes", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Settings, contentDescription = null, tint = Color.Black, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Abrir Ajustes", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Color.Black)
+                        }
                     }
                 }
             }
