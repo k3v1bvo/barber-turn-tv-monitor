@@ -436,7 +436,7 @@ class TurnRepository {
         var job: Job? = null
 
         try {
-            val supabaseClient = SupabaseClientProvider.getClient(settings.url, settings.apiKey)
+            val supabaseClient = SupabaseClientProvider.getInstance(settings.url, settings.apiKey)
 
             job = launch {
                 activeChannel = supabaseClient.channel("barber-turns-tv-live")
@@ -458,7 +458,7 @@ class TurnRepository {
             job?.cancel()
             launch {
                 try {
-                    activeChannel?.leave()
+                    activeChannel?.unsubscribe()
                 } catch (e: Exception) {
                     // Ignore
                 }
