@@ -110,7 +110,7 @@ class TurnRepository {
                         effectiveOffset = 0
                     }
                     if (!cfg.updatedAt.isNull_or_blank()) {
-                        remoteSyncTimeStr = cfg.updatedAt
+                        remoteSyncTimeStr = cfg.updatedAt ?: lastRefreshStr
                     }
                     syncSuccess = true
                 }
@@ -130,7 +130,7 @@ class TurnRepository {
                         val firstRot = rotacionResp.body()!!.first()
                         effectiveOffset = firstRot.rotationOffset ?: currentLocalOffset
                         if (!firstRot.updatedAt.isNull_or_blank()) {
-                            remoteSyncTimeStr = firstRot.updatedAt
+                            remoteSyncTimeStr = firstRot.updatedAt ?: lastRefreshStr
                         }
                     }
                 } catch (e: Exception) {

@@ -24,6 +24,12 @@ jobs:
     - name: Set up Android SDK
       uses: android-actions/setup-android@v3
 
+    - name: Create debug keystore
+      run: |
+        keytool -genkey -v -keystore debug.keystore -keyalg RSA -keysize 2048 -validity 10000 \
+          -alias androiddebugkey -keypass android -storepass android \
+          -dname "CN=Android Debug,O=Android,C=US"
+
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
       with:
@@ -44,4 +50,5 @@ jobs:
         path: |
           app/build/outputs/apk/release/*.apk
           app/build/outputs/apk/debug/*.apk
+
 

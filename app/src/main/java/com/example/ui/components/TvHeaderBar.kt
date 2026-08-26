@@ -16,9 +16,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -71,7 +71,7 @@ fun TvHeaderBar(
 
     LaunchedEffect(Unit) {
         val timeFormat = SimpleDateFormat("hh:mm:ss a", Locale.getDefault())
-        val dateFormat = SimpleDateFormat("EEEE, d 'de' MMMM", Locale("es", "ES"))
+        val dateFormat = SimpleDateFormat("EEEE, d 'de' MMMM", Locale.forLanguageTag("es-ES"))
         while (true) {
             val now = Date()
             currentTimeStr = timeFormat.format(now)
@@ -182,7 +182,7 @@ fun TvHeaderBar(
 
                 TvActionButton(
                     text = modeLabel,
-                    icon = Icons.Default.OpenInNew,
+                    icon = Icons.AutoMirrored.Filled.OpenInNew,
                     bgColor = ElectricCyan,
                     textColor = Color.White,
                     testTag = "btn_overlay_mode",
