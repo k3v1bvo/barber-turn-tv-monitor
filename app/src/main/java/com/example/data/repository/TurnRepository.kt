@@ -64,8 +64,14 @@ class TurnRepository {
         val todayStr = boliviaDate
         val lastRefreshStr = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
 
-        if (settings.isDemoMode || settings.url.isBlank() || settings.apiKey.isBlank()) {
-            return generateDemoState(currentLocalOffset, settings.shopName, lastRefreshStr)
+        if (settings.url.isBlank() || settings.apiKey.isBlank()) {
+            return TurnBoardState(
+                shopName = settings.shopName,
+                isLiveSupabase = false,
+                isDemoMode = false,
+                errorMessage = "Configure la URL y API Key de Supabase",
+                lastRefreshTime = lastRefreshStr
+            )
         }
 
         return try {
@@ -155,14 +161,6 @@ class TurnRepository {
             val presentAsistencias = asistencias
                 .filter { !it.horaEntrada.isNull_or_blank() }
                 .distinctBy { it.profileId ?: it.barberoId ?: it.profiles?.id ?: "unknown" }
-
-            if (presentAsistencias.isEmpty()) {
-                return generateDemoState(effectiveOffset, settings.shopName, lastRefreshStr).copy(
-                    isLiveSupabase = true,
-                    isDemoMode = false,
-                    errorMessage = "No hay barberos con asistencia registrada hoy ($todayStr)."
-                )
-            }
 
             // Map completed cuts & active cuts per barber
             val completedCountMap = mutableMapOf<String, Int>()
