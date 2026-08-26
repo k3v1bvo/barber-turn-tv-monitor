@@ -12,14 +12,19 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.example.data.viewmodel.TurnViewModel
 import com.example.service.FloatingTurnBubbleService
+import com.example.ui.components.TvOverlayPermissionDialog
 import com.example.ui.screens.MainTvScreen
 import com.example.ui.theme.BarberTvTheme
 
 class MainActivity : ComponentActivity() {
 
     private val viewModel: TurnViewModel by viewModels()
+    private var showTvOverlayDialog by mutableStateOf(false)
 
     private val overlayPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -50,6 +55,22 @@ class MainActivity : ComponentActivity() {
                         toggleFloatingBubble()
                     }
                 )
+
+                if (showTvOverlayDialog) {
+                    TvOverlayPermissionDialog(
+                        onOpenSettings = {
+                            showTvOverlayDialog = false
+                            openOverlaySettingsSafely()
+                        },
+                        onTryDirectStart = {
+                            showTvOverlayDialog = false
+                            startBubbleServiceSafely()
+                        },
+                        onDismiss = {
+                            showTvOverlayDialog = false
+                        }
+                    )
+                }
             }
         }
     }
@@ -74,7 +95,7 @@ class MainActivity : ComponentActivity() {
             if (checkOverlayPermission()) {
                 startBubbleServiceSafely()
             } else {
-                requestOverlayPermissionSafely()
+                showTvOverlayDialog = true
             }
         }
     }
@@ -93,7 +114,7 @@ class MainActivity : ComponentActivity() {
      * Prevents ActivityNotFoundException crashes on Android TV / Xiaomi Mi Box ROMs
      * which lack standard mobile overlay settings activities.
      */
-    private fun requestOverlayPermissionSafely() {
+    private fun openOverlaySettingsSafely() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             startBubbleServiceSafely()
             return
