@@ -51,8 +51,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -88,31 +90,6 @@ fun MainTvScreen(
 
     val nextBarberInTurn = turnState.queuedBarbers.firstOrNull()
 
-    var currentTimeStr by remember { mutableStateOf("") }
-    var currentDateStr by remember { mutableStateOf("") }
-
-    LaunchedEffect(Unit) {
-        val timeFormat = SimpleDateFormat("hh:mm:ss a", Locale.getDefault())
-        val dateFormat = SimpleDateFormat("EEEE, d 'de' MMMM", Locale.forLanguageTag("es-ES"))
-        while (true) {
-            val now = Date()
-            currentTimeStr = timeFormat.format(now)
-            currentDateStr = dateFormat.format(now).replaceFirstChar { it.uppercase() }
-            delay(1000L)
-        }
-    }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "livePulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.5f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseAlpha"
-    )
-
     val configuration = LocalConfiguration.current
     val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
 
@@ -133,7 +110,7 @@ fun MainTvScreen(
                     .background(TvBackground)
             ) {
                 // =========================================================================
-                // 1. TOP HEADER BAR (RESPONSIVE)
+                // 1. TOP HEADER BAR (RESPONSIVE & OPTIMIZED)
                 // =========================================================================
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -171,12 +148,7 @@ fun MainTvScreen(
                                             color = TextWhite
                                         )
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(6.dp)
-                                                    .clip(CircleShape)
-                                                    .background(EmeraldLive.copy(alpha = pulseAlpha))
-                                            )
+                                            LivePulseDot(size = 6.dp)
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
                                                 text = "EN VIVO",
@@ -254,12 +226,7 @@ fun MainTvScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.padding(top = 2.dp)
                                     ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(8.dp)
-                                                .clip(CircleShape)
-                                                .background(EmeraldLive.copy(alpha = pulseAlpha))
-                                        )
+                                        LivePulseDot(size = 8.dp)
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = "EN VIVO • SUPABASE REALTIME",
@@ -279,22 +246,8 @@ fun MainTvScreen(
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(
-                                    horizontalAlignment = Alignment.End,
-                                    modifier = Modifier.padding(end = 16.dp)
-                                ) {
-                                    Text(
-                                        text = currentTimeStr,
-                                        fontSize = 17.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = BarberGold
-                                    )
-                                    Text(
-                                        text = currentDateStr,
-                                        fontSize = 11.sp,
-                                        color = TextMuted
-                                    )
-                                }
+                                // Isolated Clock Composable for 0% root recomposition
+                                TvHeaderClock(modifier = Modifier.padding(end = 16.dp))
 
                                 Button(
                                     onClick = { viewModel.fetchState() },
@@ -606,4 +559,69 @@ fun MainTvScreen(
             }
         }
     }
+}
+
+/**
+ * Isolated Digital Clock Composable:
+ * Confines 1-second recomposition strictly to this text view,
+ * avoiding recomposition of the main TV board components.
+ */
+@Composable
+fun TvHeaderClock(modifier: Modifier = Modifier) {
+    var currentTimeStr by remember { mutableStateOf("") }
+    var currentDateStr by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        val timeFormat = SimpleDateFormat("hh:mm:ss a", Locale.getDefault())
+        val dateFormat = SimpleDateFormat("EEEE, d 'de' MMMM", Locale.forLanguageTag("es-ES"))
+        while (true) {
+            val now = Date()
+            currentTimeStr = timeFormat.format(now)
+            currentDateStr = dateFormat.format(now).replaceFirstChar { it.uppercase() }
+            delay(1000L)
+        }
+    }
+
+    Column(
+        horizontalAlignment = Alignment.End,
+        modifier = modifier
+    ) {
+        Text(
+            text = currentTimeStr,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = BarberGold
+        )
+        Text(
+            text = currentDateStr,
+            fontSize = 11.sp,
+            color = TextMuted
+        )
+    }
+}
+
+/**
+ * Isolated Live Pulse Dot:
+ * Runs pulse animation directly on GPU layer without triggering Jetpack Compose layout passes.
+ */
+@Composable
+fun LivePulseDot(size: Dp = 8.dp) {
+    val infiniteTransition = rememberInfiniteTransition(label = "livePulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .graphicsLayer { alpha = pulseAlpha }
+            .background(EmeraldLive)
+    )
 }

@@ -183,7 +183,9 @@ fun ActiveBarberItem(barber: Barber) {
                         AsyncImage(
                             model = coil.request.ImageRequest.Builder(context)
                                 .data(photoUrl)
-                                .crossfade(true)
+                                .size(120, 120)
+                                .crossfade(150)
+                                .allowHardware(false)
                                 .build(),
                             contentDescription = barber.fullName,
                             modifier = Modifier.fillMaxSize(),

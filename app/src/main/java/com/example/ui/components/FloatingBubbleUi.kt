@@ -273,7 +273,9 @@ fun FloatingBubbleUi(
                                 AsyncImage(
                                     model = coil.request.ImageRequest.Builder(context)
                                         .data(photoUrl)
-                                        .crossfade(true)
+                                        .size(100, 100)
+                                        .crossfade(150)
+                                        .allowHardware(false)
                                         .build(),
                                     contentDescription = currentBarber?.fullName,
                                     modifier = Modifier

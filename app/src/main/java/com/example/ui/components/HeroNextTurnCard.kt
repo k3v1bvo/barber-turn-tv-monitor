@@ -157,7 +157,9 @@ fun HeroNextTurnCard(
                             AsyncImage(
                                 model = coil.request.ImageRequest.Builder(context)
                                     .data(photoUrl)
-                                    .crossfade(true)
+                                    .size(180, 180)
+                                    .crossfade(150)
+                                    .allowHardware(false)
                                     .build(),
                                 contentDescription = barber.fullName,
                                 modifier = Modifier.fillMaxSize(),
@@ -312,7 +314,9 @@ fun HeroNextTurnCard(
                             AsyncImage(
                                 model = coil.request.ImageRequest.Builder(context)
                                     .data(photoUrl)
-                                    .crossfade(true)
+                                    .size(180, 180)
+                                    .crossfade(150)
+                                    .allowHardware(false)
                                     .build(),
                                 contentDescription = barber.fullName,
                                 modifier = Modifier.fillMaxSize(),

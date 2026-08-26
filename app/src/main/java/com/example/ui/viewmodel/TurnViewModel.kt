@@ -9,6 +9,7 @@ import com.example.data.model.SupabaseSettings
 import com.example.data.model.TurnBoardState
 import com.example.data.model.TvOverlayMode
 import com.example.data.repository.TurnRepository
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,9 +17,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+@OptIn(FlowPreview::class)
 class TurnViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = TurnRepository()
@@ -62,24 +65,25 @@ class TurnViewModel(application: Application) : AndroidViewModel(application) {
 
         val currentSettings = _settings.value
 
-        // 2. Realtime Subscription for instantaneous updates from Supabase
+        // 2. Realtime Subscription with debounce for instantaneous updates
         if (!currentSettings.isDemoMode && currentSettings.url.isNotBlank() && currentSettings.apiKey.isNotBlank()) {
             realtimeJob = viewModelScope.launch {
                 try {
-                    repository.subscribeToRealtimeChanges(currentSettings).collect {
-                        // Real-time table change detected in Supabase (asistencias, citas, config_turnos, etc.)
-                        fetchState()
-                    }
+                    repository.subscribeToRealtimeChanges(currentSettings)
+                        .debounce(600L)
+                        .collect {
+                            fetchState()
+                        }
                 } catch (e: Exception) {
                     // Safe fallback if websocket drops
                 }
             }
         }
 
-        // 3. Fallback Periodic Polling Heartbeat
+        // 3. Fallback Periodic Polling Heartbeat (relaxed interval to save CPU/battery)
         pollingJob = viewModelScope.launch {
             while (true) {
-                val intervalSec = currentSettings.refreshIntervalSec.coerceAtLeast(5)
+                val intervalSec = currentSettings.refreshIntervalSec.coerceAtLeast(15)
                 delay(intervalSec * 1000L)
                 fetchState()
             }
