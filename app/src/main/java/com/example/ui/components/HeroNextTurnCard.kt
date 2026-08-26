@@ -149,9 +149,10 @@ fun HeroNextTurnCard(
                             .background(Color(0xFF18181B)),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (!barber.avatarUrl.isNullOrBlank()) {
+                        val photoUrl = barber.avatarUrl?.ifBlank { null } ?: barber.selfieUrl
+                        if (!photoUrl.isNullOrBlank()) {
                             AsyncImage(
-                                model = barber.avatarUrl,
+                                model = photoUrl,
                                 contentDescription = barber.fullName,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop

@@ -53,6 +53,7 @@ fun BarberAvailabilityDot(
         BarberStatus.DISPONIBLE -> Color(0xFF10B981) // Green / Active
         BarberStatus.EN_TURNO -> Color(0xFF10B981)   // Green / Active & Next
         BarberStatus.EN_CORTE -> Color(0xFF3B82F6)   // Blue / Cutting
+        BarberStatus.EN_ALMUERZO -> Color(0xFFEAB308) // Yellow / Lunch
         BarberStatus.DESCANSO -> Color(0xFF71717A)   // Grey / Offline
     }
 
@@ -108,6 +109,7 @@ fun BarberAvailabilityBadge(
         BarberStatus.DISPONIBLE -> Triple(Color(0xFF10B981), "Activo", Color(0xFF6EE7B7))
         BarberStatus.EN_TURNO -> Triple(Color(0xFFF59E0B), "En turno", Color(0xFFFCD34D))
         BarberStatus.EN_CORTE -> Triple(Color(0xFF3B82F6), "En corte", Color(0xFF93C5FD))
+        BarberStatus.EN_ALMUERZO -> Triple(Color(0xFFEAB308), "En almuerzo", Color(0xFFFDE047))
         BarberStatus.DESCANSO -> Triple(Color(0xFF71717A), "Offline", Color(0xFFA1A1AA))
     }
 

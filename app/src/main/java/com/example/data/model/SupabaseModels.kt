@@ -10,6 +10,10 @@ data class AsistenciaDto(
     @Json(name = "barbero_id") val barberoId: String? = null,
     @Json(name = "fecha") val fecha: String? = null,
     @Json(name = "hora_entrada") val horaEntrada: String? = null,
+    @Json(name = "hora_salida") val horaSalida: String? = null,
+    @Json(name = "selfie_url") val selfieUrl: String? = null,
+    @Json(name = "en_almuerzo") val enAlmuerzo: Boolean? = false,
+    @Json(name = "estado") val estado: String? = null,
     @Json(name = "profiles") val profiles: ProfileDto? = null
 )
 

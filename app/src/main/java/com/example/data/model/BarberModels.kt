@@ -4,8 +4,11 @@ data class Barber(
     val id: String,
     val fullName: String,
     val avatarUrl: String?,
+    val selfieUrl: String? = null,
     val role: String = "barbero",
-    val horaEntrada: String?, // e.g. "08:30:00"
+    val horaEntrada: String?, // Formatted: e.g. "08:30 AM"
+    val rawHoraEntrada: String? = null, // Raw ISO string: e.g. "2026-08-26T08:30:00-04:00"
+    val enAlmuerzo: Boolean = false,
     val completedCountToday: Int = 0,
     val lastCompletedAt: String? = null, // e.g. "2026-08-12T09:15:00Z"
     val status: BarberStatus = BarberStatus.DISPONIBLE,
@@ -17,6 +20,7 @@ enum class BarberStatus {
     EN_TURNO,      // #1 in queue (Next to serve)
     DISPONIBLE,    // In queue waiting
     EN_CORTE,      // Currently cutting a client
+    EN_ALMUERZO,   // On lunch break
     DESCANSO       // Not present / on break
 }
 

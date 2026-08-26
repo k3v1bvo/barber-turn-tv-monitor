@@ -267,9 +267,10 @@ fun FloatingBubbleUi(
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (!currentBarber?.avatarUrl.isNullOrBlank()) {
+                            val photoUrl = currentBarber?.avatarUrl?.ifBlank { null } ?: currentBarber?.selfieUrl
+                            if (!photoUrl.isNullOrBlank()) {
                                 AsyncImage(
-                                    model = currentBarber?.avatarUrl,
+                                    model = photoUrl,
                                     contentDescription = currentBarber?.fullName,
                                     modifier = Modifier
                                         .size(42.dp)

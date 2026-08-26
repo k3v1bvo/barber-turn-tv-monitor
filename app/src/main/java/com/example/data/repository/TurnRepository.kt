@@ -24,6 +24,11 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -52,12 +57,50 @@ class TurnRepository {
             .create(SupabaseApi::class.java)
     }
 
+    /**
+     * Formats an ISO-8601 timestamp (e.g. "2026-08-26T08:45:12-04:00") into
+     * an attractive 12-hour format: "08:45 AM"
+     */
+    fun formatHoraLlegada(horaIso: String?): String {
+        if (horaIso.isNullOrBlank()) return "Pendiente"
+        return try {
+            if (horaIso.contains("T")) {
+                val odt = OffsetDateTime.parse(horaIso)
+                val formatter = DateTimeFormatter.ofPattern("hh:mm a", Locale.forLanguageTag("es-BO"))
+                odt.format(formatter).uppercase()
+            } else if (horaIso.contains(":")) {
+                val parts = horaIso.split(":")
+                val hour = parts[0].toIntOrNull() ?: 0
+                val min = parts.getOrNull(1) ?: "00"
+                val ampm = if (hour >= 12) "PM" else "AM"
+                val displayHour = when {
+                    hour == 0 -> 12
+                    hour > 12 -> hour - 12
+                    else -> hour
+                }
+                String.format(Locale.US, "%02d:%s %s", displayHour, min, ampm)
+            } else {
+                horaIso
+            }
+        } catch (e: Exception) {
+            try {
+                val instant = Instant.parse(horaIso)
+                val zdt = instant.atZone(ZoneOffset.ofHours(-4))
+                val formatter = DateTimeFormatter.ofPattern("hh:mm a", Locale.forLanguageTag("es-BO"))
+                zdt.format(formatter).uppercase()
+            } catch (_: Exception) {
+                val timePart = horaIso.substringAfter("T").take(5)
+                if (timePart.isNotBlank()) timePart else horaIso
+            }
+        }
+    }
+
     suspend fun fetchTurnBoardState(
         settings: SupabaseSettings,
         currentLocalOffset: Int
     ): TurnBoardState {
         val boliviaDate = try {
-            java.time.LocalDate.now(java.time.ZoneOffset.ofHours(-4)).toString()
+            LocalDate.now(ZoneOffset.ofHours(-4)).toString()
         } catch (e: Exception) {
             SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         }
@@ -96,7 +139,7 @@ class TurnRepository {
                 fechaFilter = "eq.$todayStr"
             )
 
-            // 1. Try fetching config_turnos (id = 'turno_offset')
+            // 1. Fetch rotation offset from config_turnos (id = 'turno_offset')
             var effectiveOffset = currentLocalOffset
             var remoteSyncTimeStr = lastRefreshStr
             var syncSuccess = false
@@ -115,7 +158,7 @@ class TurnRepository {
                     } else {
                         effectiveOffset = 0
                     }
-                    if (!cfg.updatedAt.isNull_or_blank()) {
+                    if (!cfg.updatedAt.isNullOrBlank()) {
                         remoteSyncTimeStr = cfg.updatedAt ?: lastRefreshStr
                     }
                     syncSuccess = true
@@ -135,7 +178,7 @@ class TurnRepository {
                     if (rotacionResp.isSuccessful && !rotacionResp.body().isNullOrEmpty()) {
                         val firstRot = rotacionResp.body()!!.first()
                         effectiveOffset = firstRot.rotationOffset ?: currentLocalOffset
-                        if (!firstRot.updatedAt.isNull_or_blank()) {
+                        if (!firstRot.updatedAt.isNullOrBlank()) {
                             remoteSyncTimeStr = firstRot.updatedAt ?: lastRefreshStr
                         }
                     }
@@ -159,7 +202,7 @@ class TurnRepository {
 
             // 1. Filter & deduplicate present barbers today
             val presentAsistencias = asistencias
-                .filter { !it.horaEntrada.isNull_or_blank() }
+                .filter { !it.horaEntrada.isNullOrBlank() }
                 .distinctBy { it.profileId ?: it.barberoId ?: it.profiles?.id ?: "unknown" }
 
             // Map completed cuts & active cuts per barber
@@ -193,30 +236,39 @@ class TurnRepository {
             val allPresentBarbers: List<Barber> = if (presentAsistencias.isNotEmpty()) {
                 presentAsistencias.map { asistencia ->
                     val bId = asistencia.profileId ?: asistencia.barberoId ?: asistencia.profiles?.id ?: "unknown"
-                    val name = asistencia.profiles?.fullName
-                        ?.ifBlank { null }
-                        ?: "Barbero #${bId.takeLast(4)}"
-                    val avatar = asistencia.profiles?.avatarUrl
-                    val arrival = asistencia.horaEntrada ?: "08:00:00"
+                    val name = asistencia.profiles?.fullName?.ifBlank { null } ?: "Barbero #${bId.takeLast(4)}"
+                    val avatar = asistencia.profiles?.avatarUrl?.ifBlank { null } ?: asistencia.selfieUrl
+                    val rawArrival = asistencia.horaEntrada ?: ""
+                    val formattedArrival = formatHoraLlegada(rawArrival)
                     val completed = completedCountMap[bId] ?: 0
                     val lastComp = lastCompletedAtMap[bId]
                     val activeInfo = activeCitasMap[bId]
+                    val isAlmuerzo = asistencia.enAlmuerzo ?: false
+
+                    val initialStatus = when {
+                        isAlmuerzo -> BarberStatus.EN_ALMUERZO
+                        activeInfo != null -> BarberStatus.EN_CORTE
+                        else -> BarberStatus.DISPONIBLE
+                    }
 
                     Barber(
                         id = bId,
                         fullName = name,
                         avatarUrl = avatar,
+                        selfieUrl = asistencia.selfieUrl,
                         role = asistencia.profiles?.role ?: "barbero",
-                        horaEntrada = arrival,
+                        horaEntrada = formattedArrival,
+                        rawHoraEntrada = rawArrival,
+                        enAlmuerzo = isAlmuerzo,
                         completedCountToday = completed,
                         lastCompletedAt = lastComp,
-                        status = if (activeInfo != null) BarberStatus.EN_CORTE else BarberStatus.DISPONIBLE,
+                        status = initialStatus,
                         activeClientName = activeInfo?.first,
                         currentService = activeInfo?.second
                     )
                 }
             } else {
-                // Fetch registered barbers from profiles table
+                // Fetch registered barbers from profiles table if no attendance recorded yet
                 try {
                     val endpointProfiles = "${settings.url.trim().removeSuffix("/")}/rest/v1/profiles"
                     val profResp = api.getProfiles(
@@ -239,8 +291,11 @@ class TurnRepository {
                             id = bId,
                             fullName = name,
                             avatarUrl = prof.avatarUrl,
+                            selfieUrl = null,
                             role = prof.role ?: "barbero",
                             horaEntrada = "Pendiente",
+                            rawHoraEntrada = null,
+                            enAlmuerzo = false,
                             completedCountToday = completed,
                             lastCompletedAt = lastComp,
                             status = if (activeInfo != null) BarberStatus.EN_CORTE else BarberStatus.DISPONIBLE,
@@ -253,14 +308,18 @@ class TurnRepository {
                 }
             }
 
-            // Separate active barbers from queue barbers
-            val activeBarbers = allPresentBarbers.filter { it.status == BarberStatus.EN_CORTE }
-            val queueEligible = allPresentBarbers.filter { it.status != BarberStatus.EN_CORTE }
+            // Separate active / lunch barbers from queue barbers
+            val activeBarbers = allPresentBarbers.filter {
+                it.status == BarberStatus.EN_CORTE || it.status == BarberStatus.EN_ALMUERZO
+            }
+            val queueEligible = allPresentBarbers.filter {
+                it.status != BarberStatus.EN_CORTE && it.status != BarberStatus.EN_ALMUERZO
+            }
 
-            // Priority 1: 0 cuts today, sorted by arrival time
+            // Priority 1: 0 cuts today, sorted chronologically by raw arrival time
             val priority1 = queueEligible
                 .filter { it.completedCountToday == 0 }
-                .sortedBy { it.horaEntrada ?: "99:99" }
+                .sortedBy { it.rawHoraEntrada ?: "9999" }
 
             // Priority 2: Has cuts today, sorted by last completed time
             val priority2 = queueEligible
@@ -324,7 +383,7 @@ class TurnRepository {
             val endpointRotacion = "${settings.url.trim().removeSuffix("/")}/rest/v1/turnos_rotacion"
 
             val boliviaDate = try {
-                java.time.LocalDate.now(java.time.ZoneOffset.ofHours(-4)).toString()
+                LocalDate.now(ZoneOffset.ofHours(-4)).toString()
             } catch (e: Exception) {
                 SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
             }
@@ -360,63 +419,50 @@ class TurnRepository {
                     )
                 )
             } catch (e: Exception) {
-                // Ignore fallback
+                // Ignore if turnos_rotacion write fails
             }
         } catch (e: Exception) {
-            // Ignore overall errors
+            // Ignore error
         }
     }
 
-    /**
-     * Subscribes in real-time to Supabase changes on public schema tables:
-     * - 'asistencias' (barber attendance / arrival)
-     * - 'citas' (haircuts, services, queue transitions)
-     * - 'turnos_rotacion' & 'config_turnos' (turn rotation offsets)
-     *
-     * Emits whenever a table change event occurs, enabling instant zero-lag UI updates.
-     */
     fun subscribeToRealtimeChanges(settings: SupabaseSettings): Flow<Unit> = callbackFlow {
         if (settings.isDemoMode || settings.url.isBlank() || settings.apiKey.isBlank()) {
+            awaitClose {}
             return@callbackFlow
         }
 
-        var channel: RealtimeChannel? = null
-        var listenerJob: Job? = null
+        var activeChannel: RealtimeChannel? = null
+        var job: Job? = null
 
         try {
-            val client = SupabaseClientProvider.getInstance(settings.url, settings.apiKey)
-            client.realtime.connect()
+            val supabaseClient = SupabaseClientProvider.getClient(settings.url, settings.apiKey)
 
-            val channelName = "barber_turnos_realtime_${System.currentTimeMillis()}"
-            val activeChannel = client.channel(channelName)
-            channel = activeChannel
+            job = launch {
+                activeChannel = supabaseClient.channel("barber-turns-tv-live")
+                val channel = activeChannel ?: return@launch
 
-            val changesFlow = activeChannel.postgresChangeFlow<PostgresAction>(schema = "public")
+                val changeFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public")
 
-            listenerJob = launch {
-                changesFlow.collect {
+                channel.subscribe(blockUntilSubscribed = false)
+
+                changeFlow.collect {
                     trySend(Unit)
                 }
             }
-
-            activeChannel.subscribe()
         } catch (e: Exception) {
-            // Log or fallback safely without crashing
+            // Log or ignore
         }
 
         awaitClose {
-            listenerJob?.cancel()
+            job?.cancel()
             launch {
                 try {
-                    channel?.unsubscribe()
+                    activeChannel?.leave()
                 } catch (e: Exception) {
-                    // Ignore channel cleanup exception
+                    // Ignore
                 }
             }
         }
-    }
-
-    private fun String?.isNull_or_blank(): Boolean {
-        return this == null || this.isBlank()
     }
 }
