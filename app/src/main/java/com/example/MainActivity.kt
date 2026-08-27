@@ -111,8 +111,7 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Safely attempts to open overlay permission settings.
-     * Prevents ActivityNotFoundException crashes on Android TV / Xiaomi Mi Box ROMs
-     * which lack standard mobile overlay settings activities.
+     * Tries Android TV Leanback Special App Access screens first, then fallbacks.
      */
     private fun openOverlaySettingsSafely() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
@@ -120,39 +119,31 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        // Tier 1: Direct package overlay settings (Phones & Standard Android)
-        try {
-            val intentPackage = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:$packageName")
-            )
-            overlayPermissionLauncher.launch(intentPackage)
-            return
-        } catch (_: Exception) {}
+        // Tier 1: Android TV Leanback Special App Access (Xiaomi Mi Box / Skyworth / Google TV)
+        val tvIntents = listOf(
+            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.device.apps.specialaccess.SpecialAppAccessActivity"),
+            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.device.apps.specialaccess.HighPriorityPermissionActivity"),
+            Intent().setClassName("com.google.android.tv.frameworkpackagestubs", "com.google.android.tv.frameworkpackagestubs.StubsActivity"),
+            Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
+            Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")),
+            Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)
+        )
 
-        // Tier 2: Generic overlay settings list
-        try {
-            val intentGeneric = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-            overlayPermissionLauncher.launch(intentGeneric)
-            return
-        } catch (_: Exception) {}
+        for (intent in tvIntents) {
+            try {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                Toast.makeText(
+                    this,
+                    "En la TV: Entra a 'Mostrar sobre otras apps' y actívalo para BarberSite.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return
+            } catch (_: Exception) {}
+        }
 
-        // Tier 3: App Details Settings (Android TV / Xiaomi Mi Box Leanback)
-        try {
-            val intentAppDetails = Intent(
-                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                Uri.parse("package:$packageName")
-            )
-            startActivity(intentAppDetails)
-            Toast.makeText(
-                this,
-                "En la TV: Entra a Permisos > 'Mostrar sobre otras apps' y actívalo para BarberSite.",
-                Toast.LENGTH_LONG
-            ).show()
-            return
-        } catch (_: Exception) {}
-
-        // Tier 4: Direct start if no settings screen is available in this TV ROM
+        // Fallback: Direct start if no settings screen is available in this TV ROM
         startBubbleServiceSafely()
     }
 }
