@@ -24,6 +24,7 @@ class SettingsManager(private val context: Context) {
         val KEY_IS_DEMO_MODE = booleanPreferencesKey("is_demo_mode")
         val KEY_REFRESH_INTERVAL = intPreferencesKey("refresh_interval")
         val KEY_ROTATION_OFFSET = intPreferencesKey("rotation_offset")
+        val KEY_LAST_TV_IP = stringPreferencesKey("last_tv_ip")
 
         val DEFAULT_BUILD_URL: String get() {
             val nextUrl = try { BuildConfig.NEXT_PUBLIC_SUPABASE_URL } catch (_: Throwable) { "" }
@@ -93,6 +94,16 @@ class SettingsManager(private val context: Context) {
     suspend fun resetRotationOffset() {
         context.dataStore.edit { prefs ->
             prefs[KEY_ROTATION_OFFSET] = 0
+        }
+    }
+
+    val lastTvIpFlow: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_LAST_TV_IP] ?: ""
+    }
+
+    suspend fun saveLastTvIp(ip: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_LAST_TV_IP] = ip.trim()
         }
     }
 }

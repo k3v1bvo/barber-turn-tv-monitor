@@ -56,6 +56,8 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun TvOverlayPermissionDialog(
+    initialTargetIp: String = "",
+    onSaveTargetIp: (String) -> Unit = {},
     onOpenSettings: () -> Unit,
     onTryDirectStart: () -> Unit,
     onDismiss: () -> Unit
@@ -68,7 +70,7 @@ fun TvOverlayPermissionDialog(
     var isAutoLocalFocused by remember { mutableStateOf(false) }
     var isSendRemoteFocused by remember { mutableStateOf(false) }
 
-    var targetIpInput by remember { mutableStateOf("") }
+    var targetIpInput by remember(initialTargetIp) { mutableStateOf(initialTargetIp) }
     var isExecutingAdb by remember { mutableStateOf(false) }
     var adbStatusMessage by remember { mutableStateOf<String?>(null) }
     var isAdbSuccess by remember { mutableStateOf(false) }
@@ -247,10 +249,12 @@ fun TvOverlayPermissionDialog(
                                     .onFocusChanged { isSendRemoteFocused = it.isFocused }
                                     .focusable()
                                     .clickable(enabled = !isExecutingAdb && targetIpInput.isNotBlank()) {
+                                        val cleanIp = targetIpInput.trim()
+                                        onSaveTargetIp(cleanIp)
                                         isExecutingAdb = true
-                                        adbStatusMessage = "Enviando permiso a ${targetIpInput.trim()}..."
+                                        adbStatusMessage = "Enviando permiso a $cleanIp..."
                                         coroutineScope.launch {
-                                            val result = AdbHelper.grantOverlayPermission(targetIpInput.trim())
+                                            val result = AdbHelper.grantOverlayPermission(cleanIp)
                                             isExecutingAdb = false
                                             when (result) {
                                                 is AdbHelper.AdbResult.Success -> {

@@ -47,6 +47,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
+            val lastTvIp by androidx.lifecycle.compose.collectAsStateWithLifecycle(viewModel.lastTvIp)
+
             BarberTvTheme {
                 MainTvScreen(
                     viewModel = viewModel,
@@ -58,6 +60,8 @@ class MainActivity : ComponentActivity() {
 
                 if (showTvOverlayDialog) {
                     TvOverlayPermissionDialog(
+                        initialTargetIp = lastTvIp,
+                        onSaveTargetIp = { viewModel.saveLastTvIp(it) },
                         onOpenSettings = {
                             showTvOverlayDialog = false
                             openOverlaySettingsSafely()
