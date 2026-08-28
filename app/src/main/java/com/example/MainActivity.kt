@@ -15,6 +15,7 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.viewmodel.TurnViewModel
 import com.example.service.FloatingTurnBubbleService
 import com.example.ui.components.TvOverlayPermissionDialog
@@ -47,7 +48,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            val lastTvIp by androidx.lifecycle.compose.collectAsStateWithLifecycle(viewModel.lastTvIp)
+            val lastTvIp by viewModel.lastTvIp.collectAsStateWithLifecycle()
 
             BarberTvTheme {
                 MainTvScreen(
