@@ -90,6 +90,7 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
         const val CHANNEL_ID = "barber_floating_turn_channel"
         const val NOTIFICATION_ID = 9021
         const val ACTION_STOP = "com.example.service.ACTION_STOP_FLOATING"
+        const val ACTION_OVERLAY_FAILED = "com.example.service.ACTION_OVERLAY_FAILED"
 
         var isRunning = false
             private set
@@ -271,13 +272,11 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
             windowManager?.addView(composeView, layoutParams)
         } catch (e: Exception) {
             Log.e(TAG, "Error adding floating overlay view", e)
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                Toast.makeText(
-                    applicationContext,
-                    "No se pudo mostrar la burbuja. Verifica los permisos de superposición en Ajustes.",
-                    Toast.LENGTH_LONG
-                ).show()
+            // Notify MainActivity to re-show the overlay permission dialog
+            val failIntent = Intent(ACTION_OVERLAY_FAILED).apply {
+                setPackage(applicationContext.packageName)
             }
+            sendBroadcast(failIntent)
             stopSelf()
         }
     }

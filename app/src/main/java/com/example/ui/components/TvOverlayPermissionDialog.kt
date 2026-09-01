@@ -1,11 +1,5 @@
 package com.example.ui.components
 
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,11 +15,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
@@ -72,8 +69,10 @@ import kotlinx.coroutines.launch
 fun TvOverlayPermissionDialog(
     initialTargetIp: String = "",
     isTvDevice: Boolean = true,
+    isAdbEnabled: Boolean = false,
     onSaveTargetIp: (String) -> Unit = {},
     onOpenSettings: () -> Unit,
+    onOpenDeveloperSettings: () -> Unit = {},
     onOpenXiaomiSettings: () -> Unit = {},
     onTryDirectStart: () -> Unit,
     onDismiss: () -> Unit
@@ -85,7 +84,7 @@ fun TvOverlayPermissionDialog(
     var isCancelFocused by remember { mutableStateOf(false) }
     var isDirectFocused by remember { mutableStateOf(false) }
     var isSettingsFocused by remember { mutableStateOf(false) }
-    var isXiaomiSettingsFocused by remember { mutableStateOf(false) }
+    var isDevSettingsFocused by remember { mutableStateOf(false) }
     var isAutoLocalFocused by remember { mutableStateOf(false) }
     var isSendRemoteFocused by remember { mutableStateOf(false) }
     var isScanFocused by remember { mutableStateOf(false) }
@@ -99,13 +98,6 @@ fun TvOverlayPermissionDialog(
 
     LaunchedEffect(Unit) {
         localDeviceIp = AdbHelper.getLocalIpAddress(context)
-    }
-
-    val isXiaomi = remember {
-        val manufacturer = Build.MANUFACTURER.lowercase()
-        val brand = Build.BRAND.lowercase()
-        manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco") ||
-                brand.contains("xiaomi") || brand.contains("redmi") || brand.contains("poco")
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -135,142 +127,164 @@ fun TvOverlayPermissionDialog(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = if (isTvDevice) "Modo Burbuja en Xiaomi TV Box" else "Modo Burbuja Flotante",
+                            text = if (isTvDevice) "Activar Burbuja en TV Box" else "Activar Burbuja Flotante",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextWhite
                         )
                         Text(
-                            text = "Superposición sobre YouTube, Netflix y otras apps",
+                            text = "Se requiere permiso de superposición",
                             fontSize = 11.sp,
                             color = BarberGold
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Info text
-                Text(
-                    text = if (isTvDevice) {
-                        "En Android TV / Xiaomi TV Box los permisos de superposición se activan mediante depuración USB (1 solo clic) o enviándolo desde tu celular:"
-                    } else {
-                        "Para que la burbuja de turnos flote encima de tus aplicaciones, activa el permiso de 'Mostrar sobre otras apps' (o 'Ventanas emergentes'):"
-                    },
-                    fontSize = 12.sp,
-                    color = TextWhite,
-                    lineHeight = 16.sp
-                )
-
-                if (localDeviceIp != null) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "📡 IP de este dispositivo: $localDeviceIp",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = ElectricCyan
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // =========================================================================
-                // SECTION 1: TV BOX AUTO-ACTIVATION (LOCAL 127.0.0.1)
+                // TV DEVICE: STEP-BY-STEP GUIDED FLOW
                 // =========================================================================
                 if (isTvDevice) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF0F172A))
-                            .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(12.dp))
-                            .padding(14.dp)
+                    // ── STEP 1: Enable Developer Options ──
+                    StepCard(
+                        stepNumber = 1,
+                        title = "Activar Opciones de Desarrollador",
+                        description = "En la TV: Ajustes → Información → Toca 'Número de compilación' 7 veces seguidas hasta que diga '¡Ya eres desarrollador!'",
+                        isDone = isAdbEnabled, // If ADB is on, dev options are definitely on
+                        accentColor = BarberGold
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // ── STEP 2: Enable USB Debugging ──
+                    StepCard(
+                        stepNumber = 2,
+                        title = "Activar Depuración USB",
+                        description = if (isAdbEnabled)
+                            "✅ ¡Depuración USB está ACTIVADA! Puedes continuar al paso 3."
+                        else
+                            "En la TV: Ajustes → Opciones de Desarrollador → Activa 'Depuración USB'",
+                        isDone = isAdbEnabled,
+                        accentColor = if (isAdbEnabled) EmeraldLive else Color(0xFFF97316)
                     ) {
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("⚡", fontSize = 16.sp)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Auto-Activar en esta TV (1-Clic)",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = ElectricCyan
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Con 'Depuración USB' activada en Ajustes de la TV, presiona este botón:",
-                                fontSize = 11.sp,
-                                color = TextMuted
-                            )
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
+                        if (!isAdbEnabled) {
+                            Spacer(modifier = Modifier.height(8.dp))
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isAutoLocalFocused) Color(0xFF1E3A8A) else Color(0xFF1E293B))
-                                    .border(
-                                        width = if (isAutoLocalFocused) 2.dp else 1.dp,
-                                        color = if (isAutoLocalFocused) ElectricCyan else Color(0xFF3B82F6),
-                                        shape = RoundedCornerShape(8.dp)
-                                    )
-                                    .onFocusChanged { isAutoLocalFocused = it.isFocused }
+                                    .background(if (isDevSettingsFocused) Color(0xFF334155) else Color(0xFF1E293B))
+                                    .border(1.dp, if (isDevSettingsFocused) ElectricCyan else Color(0xFF475569), RoundedCornerShape(8.dp))
+                                    .onFocusChanged { isDevSettingsFocused = it.isFocused }
                                     .focusable()
-                                    .clickable(enabled = !isExecutingAdb) {
-                                        isExecutingAdb = true
-                                        adbStatusMessage = "Conectando al servicio de la TV..."
-                                        coroutineScope.launch {
-                                            val result = AdbHelper.grantOverlayPermission(context, "127.0.0.1")
-                                            isExecutingAdb = false
-                                            when (result) {
-                                                is AdbHelper.AdbResult.Success -> {
-                                                    isAdbSuccess = true
-                                                    adbStatusMessage = result.message
-                                                    onTryDirectStart()
-                                                }
-                                                is AdbHelper.AdbResult.NeedsAuth -> {
-                                                    isAdbSuccess = false
-                                                    adbStatusMessage = result.message
-                                                }
-                                                is AdbHelper.AdbResult.Error -> {
-                                                    isAdbSuccess = false
-                                                    adbStatusMessage = result.message
-                                                }
-                                            }
-                                        }
-                                    }
-                                    .padding(vertical = 10.dp, horizontal = 12.dp),
+                                    .clickable { onOpenDeveloperSettings() }
+                                    .padding(vertical = 10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (isExecutingAdb) {
-                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = ElectricCyan, strokeWidth = 2.dp)
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                    } else {
-                                        Icon(Icons.Default.Bolt, contentDescription = null, tint = ElectricCyan, modifier = Modifier.size(18.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                    }
-                                    Text(
-                                        text = "⚡ AUTO-ACTIVAR EN ESTA TV (1-CLIC)",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = ElectricCyan
-                                    )
+                                    Icon(Icons.Default.Settings, contentDescription = null, tint = ElectricCyan, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Abrir Opciones de Desarrollador", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ElectricCyan)
                                 }
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                // =========================================================================
-                // SECTION 2: MOBILE PERMISSIONS (IF RUNNING ON PHONE)
-                // =========================================================================
-                if (!isTvDevice) {
+                    // ── STEP 3: Auto-Grant Permission ──
+                    StepCard(
+                        stepNumber = 3,
+                        title = "Auto-Activar Permiso (1 Clic)",
+                        description = if (isAdbEnabled)
+                            "Presiona el botón y acepta el cartel que aparecerá en la pantalla de la TV:"
+                        else
+                            "⚠️ Primero completa los pasos 1 y 2 arriba",
+                        isDone = isAdbSuccess,
+                        accentColor = ElectricCyan
+                    ) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (isAdbSuccess) Color(0xFF064E3B)
+                                    else if (isAutoLocalFocused) Color(0xFF1E3A8A)
+                                    else Color(0xFF1E293B)
+                                )
+                                .border(
+                                    width = if (isAutoLocalFocused) 2.dp else 1.dp,
+                                    color = if (isAdbSuccess) EmeraldLive
+                                    else if (isAutoLocalFocused) ElectricCyan
+                                    else Color(0xFF3B82F6),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .onFocusChanged { isAutoLocalFocused = it.isFocused }
+                                .focusable()
+                                .clickable(enabled = !isExecutingAdb) {
+                                    isExecutingAdb = true
+                                    adbStatusMessage = "Conectando al servicio de la TV..."
+                                    coroutineScope.launch {
+                                        val result = AdbHelper.grantOverlayPermission(context, "127.0.0.1")
+                                        isExecutingAdb = false
+                                        when (result) {
+                                            is AdbHelper.AdbResult.Success -> {
+                                                isAdbSuccess = true
+                                                adbStatusMessage = result.message
+                                                onTryDirectStart()
+                                            }
+                                            is AdbHelper.AdbResult.NeedsAuth -> {
+                                                isAdbSuccess = false
+                                                adbStatusMessage = result.message
+                                            }
+                                            is AdbHelper.AdbResult.Error -> {
+                                                isAdbSuccess = false
+                                                adbStatusMessage = result.message
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(vertical = 12.dp, horizontal = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (isExecutingAdb) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = ElectricCyan, strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                } else {
+                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = ElectricCyan, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                }
+                                Text(
+                                    text = if (isAdbSuccess) "✅ ¡PERMISO CONCEDIDO!" else "⚡ AUTO-ACTIVAR EN ESTA TV",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = if (isAdbSuccess) EmeraldLive else ElectricCyan
+                                )
+                            }
+                        }
+
+                        // Status feedback
+                        if (adbStatusMessage != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = adbStatusMessage ?: "",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isAdbSuccess) EmeraldLive else Color(0xFFFBBF24),
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                } else {
+                    // =========================================================================
+                    // MOBILE: Standard overlay permission flow
+                    // =========================================================================
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -283,58 +297,44 @@ fun TvOverlayPermissionDialog(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.PhoneAndroid, contentDescription = null, tint = BarberGold, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Permiso en este Celular",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = BarberGold
-                                )
+                                Text("Permiso en este Celular", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = BarberGold)
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text("Activa 'Permitir mostrar sobre otras apps' (o 'Ventanas emergentes'):", fontSize = 11.sp, color = TextMuted)
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSettingsFocused) Color.White else BarberGold)
+                                    .onFocusChanged { isSettingsFocused = it.isFocused }
+                                    .focusable()
+                                    .clickable { onOpenSettings() }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Settings, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Abrir Ajustes de Superposición", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                                }
                             }
 
                             Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "Activa el interruptor 'Permitir mostrar sobre otras apps':",
-                                fontSize = 11.sp,
-                                color = TextMuted
-                            )
 
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Row(modifier = Modifier.fillMaxWidth()) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSettingsFocused) Color.White else BarberGold)
-                                        .onFocusChanged { isSettingsFocused = it.isFocused }
-                                        .focusable()
-                                        .clickable { onOpenSettings() }
-                                        .padding(vertical = 10.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Settings, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Abrir Ajustes de Superposición", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                                    }
-                                }
-
-                                if (isXiaomi) {
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isXiaomiSettingsFocused) Color(0xFF047857) else Color(0xFF065F46))
-                                            .onFocusChanged { isXiaomiSettingsFocused = it.isFocused }
-                                            .focusable()
-                                            .clickable { onOpenXiaomiSettings() }
-                                            .padding(vertical = 10.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text("⚙️ Permisos Xiaomi / HyperOS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextWhite)
-                                    }
-                                }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isDevSettingsFocused) Color(0xFF047857) else Color(0xFF065F46))
+                                    .onFocusChanged { isDevSettingsFocused = it.isFocused }
+                                    .focusable()
+                                    .clickable { onOpenXiaomiSettings() }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("⚙️ Permisos Xiaomi / HyperOS / MIUI", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextWhite)
                             }
                         }
                     }
@@ -343,7 +343,7 @@ fun TvOverlayPermissionDialog(
                 }
 
                 // =========================================================================
-                // SECTION 3: REMOTE SEND TO TV OVER WI-FI (FOR PHONES OR OTHER TVS)
+                // REMOTE SEND TO TV (Shared by phone and TV)
                 // =========================================================================
                 Box(
                     modifier = Modifier
@@ -360,17 +360,11 @@ fun TvOverlayPermissionDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Tv, contentDescription = null, tint = ElectricCyan, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Tv, contentDescription = null, tint = ElectricCyan, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "📡 Activar Permiso en TV Box por Wi-Fi",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = ElectricCyan
-                                )
+                                Text("Enviar permiso a otra TV por Wi-Fi", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ElectricCyan)
                             }
 
-                            // Auto Scan button
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
@@ -379,16 +373,16 @@ fun TvOverlayPermissionDialog(
                                     .focusable()
                                     .clickable(enabled = !isScanningNetwork && !isExecutingAdb) {
                                         isScanningNetwork = true
-                                        adbStatusMessage = "Escaneando red Wi-Fi en busca de la TV..."
+                                        adbStatusMessage = "Escaneando Wi-Fi..."
                                         coroutineScope.launch {
                                             val found = AdbHelper.scanLocalNetworkForAdb(context)
                                             isScanningNetwork = false
                                             if (found.isNotEmpty()) {
                                                 targetIpInput = found.first()
                                                 onSaveTargetIp(found.first())
-                                                adbStatusMessage = "¡TV Box encontrada en ${found.first()}! Pulsa 'Enviar a TV'."
+                                                adbStatusMessage = "¡TV encontrada en ${found.first()}!"
                                             } else {
-                                                adbStatusMessage = "No se detectó automáticamente. Asegúrate de activar 'Depuración USB' en la TV y escribe su IP."
+                                                adbStatusMessage = "No se encontró. Escribe la IP manualmente."
                                             }
                                         }
                                     }
@@ -401,19 +395,12 @@ fun TvOverlayPermissionDialog(
                                         Icon(Icons.Default.Search, contentDescription = null, tint = TextWhite, modifier = Modifier.size(14.dp))
                                     }
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Auto-Buscar TV", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextWhite)
+                                    Text("Buscar TV", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextWhite)
                                 }
                             }
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Si tienes la TV Box y este celular en el mismo Wi-Fi, envíale el permiso directamente:",
-                            fontSize = 11.sp,
-                            color = TextMuted
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -424,14 +411,10 @@ fun TvOverlayPermissionDialog(
                                 onValueChange = { targetIpInput = it },
                                 placeholder = { Text("IP de la TV (ej: 192.168.1.45)", fontSize = 11.sp, color = TextMuted) },
                                 trailingIcon = {
-                                    IconButton(
-                                        onClick = {
-                                            val clip = clipboardManager.getText()?.text
-                                            if (!clip.isNullOrBlank()) {
-                                                targetIpInput = clip.trim()
-                                            }
-                                        }
-                                    ) {
+                                    IconButton(onClick = {
+                                        val clip = clipboardManager.getText()?.text
+                                        if (!clip.isNullOrBlank()) targetIpInput = clip.trim()
+                                    }) {
                                         Icon(Icons.Default.ContentPaste, contentDescription = "Pegar", tint = ElectricCyan, modifier = Modifier.size(16.dp))
                                     }
                                 },
@@ -467,18 +450,9 @@ fun TvOverlayPermissionDialog(
                                             val result = AdbHelper.grantOverlayPermission(context, cleanIp)
                                             isExecutingAdb = false
                                             when (result) {
-                                                is AdbHelper.AdbResult.Success -> {
-                                                    isAdbSuccess = true
-                                                    adbStatusMessage = result.message
-                                                }
-                                                is AdbHelper.AdbResult.NeedsAuth -> {
-                                                    isAdbSuccess = false
-                                                    adbStatusMessage = result.message
-                                                }
-                                                is AdbHelper.AdbResult.Error -> {
-                                                    isAdbSuccess = false
-                                                    adbStatusMessage = result.message
-                                                }
+                                                is AdbHelper.AdbResult.Success -> { isAdbSuccess = true; adbStatusMessage = result.message }
+                                                is AdbHelper.AdbResult.NeedsAuth -> { isAdbSuccess = false; adbStatusMessage = result.message }
+                                                is AdbHelper.AdbResult.Error -> { isAdbSuccess = false; adbStatusMessage = result.message }
                                             }
                                         }
                                     }
@@ -487,43 +461,31 @@ fun TvOverlayPermissionDialog(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Send, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Enviar a TV", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                                    Text("Enviar", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                                 }
                             }
                         }
 
-                        // Feedback Status Message
-                        if (adbStatusMessage != null) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = adbStatusMessage ?: "",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (isAdbSuccess) EmeraldLive else Color(0xFFFBBF24),
-                                lineHeight = 15.sp
-                            )
+                        if (localDeviceIp != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("📡 IP de este dispositivo: $localDeviceIp", fontSize = 10.sp, color = TextMuted)
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Action Buttons at Bottom
+                // Bottom action buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Cancel Button
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
                             .background(if (isCancelFocused) Color(0xFF334155) else Color.Transparent)
-                            .border(
-                                width = if (isCancelFocused) 2.dp else 1.dp,
-                                color = if (isCancelFocused) ElectricCyan else Color(0x33FFFFFF),
-                                shape = RoundedCornerShape(8.dp)
-                            )
+                            .border(1.dp, if (isCancelFocused) ElectricCyan else Color(0x33FFFFFF), RoundedCornerShape(8.dp))
                             .onFocusChanged { isCancelFocused = it.isFocused }
                             .focusable()
                             .clickable { onDismiss() }
@@ -534,7 +496,6 @@ fun TvOverlayPermissionDialog(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    // Direct Start Button
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
@@ -557,6 +518,62 @@ fun TvOverlayPermissionDialog(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Reusable Step Card component for the TV guided setup flow.
+ */
+@Composable
+private fun StepCard(
+    stepNumber: Int,
+    title: String,
+    description: String,
+    isDone: Boolean,
+    accentColor: Color,
+    content: @Composable (() -> Unit)? = null
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isDone) Color(0xFF0A1A12) else Color(0xFF0F172A))
+            .border(1.dp, if (isDone) EmeraldLive.copy(alpha = 0.5f) else Color(0xFF1E293B), RoundedCornerShape(12.dp))
+            .padding(14.dp)
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Step number badge
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(if (isDone) EmeraldLive else accentColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isDone) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    } else {
+                        Text("$stepNumber", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.Black)
+                    }
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = title,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDone) EmeraldLive else TextWhite
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = description,
+                fontSize = 11.sp,
+                color = if (isDone) EmeraldLive.copy(alpha = 0.8f) else TextMuted,
+                lineHeight = 15.sp
+            )
+            content?.invoke()
         }
     }
 }

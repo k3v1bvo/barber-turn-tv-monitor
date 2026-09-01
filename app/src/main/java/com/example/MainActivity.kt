@@ -1,9 +1,10 @@
 package com.example
 
 import android.app.UiModeManager
-import android.content.ComponentName
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
@@ -34,13 +35,24 @@ class MainActivity : ComponentActivity() {
     private var showTvOverlayDialog by mutableStateOf(false)
     private var hasPendingBubbleStart = false
 
+    /**
+     * Receives broadcast from FloatingTurnBubbleService when the overlay addView fails
+     * (permission denied). Re-shows the overlay permission dialog.
+     */
+    private val overlayFailedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            showTvOverlayDialog = true
+        }
+    }
+
     private val overlayPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
         if (checkOverlayPermission()) {
             startBubbleServiceSafely()
         } else {
-            startBubbleServiceSafely()
+            // Permission still not granted; re-show dialog
+            showTvOverlayDialog = true
         }
     }
 
@@ -58,6 +70,14 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         requestNotificationPermissionIfNeeded()
+
+        // Listen for overlay failure from the floating service
+        val filter = IntentFilter(FloatingTurnBubbleService.ACTION_OVERLAY_FAILED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(overlayFailedReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(overlayFailedReceiver, filter)
+        }
 
         val isTv = isTvDevice()
 
@@ -77,11 +97,15 @@ class MainActivity : ComponentActivity() {
                     TvOverlayPermissionDialog(
                         initialTargetIp = lastTvIp,
                         isTvDevice = isTv,
+                        isAdbEnabled = isAdbDebuggingEnabled(),
                         onSaveTargetIp = { viewModel.saveLastTvIp(it) },
                         onOpenSettings = {
                             showTvOverlayDialog = false
                             hasPendingBubbleStart = true
                             openOverlaySettingsSafely()
+                        },
+                        onOpenDeveloperSettings = {
+                            openDeveloperSettingsSafely()
                         },
                         onOpenXiaomiSettings = {
                             showTvOverlayDialog = false
@@ -110,12 +134,30 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onDestroy() {
+        try {
+            unregisterReceiver(overlayFailedReceiver)
+        } catch (_: Exception) {}
+        super.onDestroy()
+    }
+
     private fun isTvDevice(): Boolean {
         val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
         val isTelevision = uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
         val hasLeanback = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
         val hasNoTouch = !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
         return isTelevision || hasLeanback || hasNoTouch
+    }
+
+    /**
+     * Checks whether ADB (USB debugging) is enabled on this device.
+     */
+    private fun isAdbDebuggingEnabled(): Boolean {
+        return try {
+            Settings.Global.getInt(contentResolver, Settings.Global.ADB_ENABLED, 0) == 1
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -133,6 +175,7 @@ class MainActivity : ComponentActivity() {
             try {
                 Settings.canDrawOverlays(this)
             } catch (e: Exception) {
+                // On some TV ROMs canDrawOverlays throws; assume allowed
                 true
             }
         } else {
@@ -159,6 +202,7 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "💈 Burbuja Flotante activada sobre todas las apps", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             Toast.makeText(this, "No se pudo iniciar la burbuja: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+            showTvOverlayDialog = true
         }
     }
 
@@ -193,7 +237,33 @@ class MainActivity : ComponentActivity() {
             } catch (_: Exception) {}
         }
 
-        startBubbleServiceSafely()
+        // Nothing worked, re-show dialog
+        showTvOverlayDialog = true
+    }
+
+    /**
+     * Opens Developer Options on this device (for enabling USB Debugging on the TV).
+     */
+    private fun openDeveloperSettingsSafely() {
+        val devIntents = listOf(
+            Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS),
+            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.system.DevelopmentActivity"),
+            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.MainSettings"),
+            Intent(Settings.ACTION_SETTINGS)
+        )
+
+        for (intent in devIntents) {
+            try {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                Toast.makeText(
+                    this,
+                    "Activa 'Depuración USB' (o 'Depuración de red') y vuelve a la app.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return
+            } catch (_: Exception) {}
+        }
     }
 
     /**
