@@ -467,34 +467,13 @@ fun BarberoTurnoCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box {
                     // Circular Avatar (40dp)
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF27272A))
-                            .border(2.dp, Color(0x1FFFFFFF), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (!barber.avatarUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = barber.avatarUrl,
-                                contentDescription = barber.fullName,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            // Show initial letter if no image
-                            val initial = barber.fullName.firstOrNull()?.uppercaseChar()?.toString() ?: "B"
-                            Text(
-                                text = initial,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                        }
-                    }
+                    BarberAvatar(
+                        fullName = barber.fullName,
+                        photoUrl = barber.avatarUrl ?: barber.selfieUrl,
+                        size = 40.dp,
+                        borderWidth = 2.dp,
+                        fontSize = 16.sp
+                    )
 
                     // Position Badge (#1, #2...)
                     Box(

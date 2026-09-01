@@ -89,33 +89,13 @@ fun BottomBannerStrip(
                 modifier = Modifier.weight(1.3f)
             ) {
                 // Barber Avatar
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .background(BarberGold)
-                        .padding(2.dp)
-                        .clip(CircleShape)
-                        .background(Color.DarkGray),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val photoUrl = nextBarber?.avatarUrl?.ifBlank { null } ?: nextBarber?.selfieUrl
-                    if (!photoUrl.isNullOrBlank()) {
-                        AsyncImage(
-                            model = photoUrl,
-                            contentDescription = nextBarber?.fullName,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = TextWhite,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
+                BarberAvatar(
+                    fullName = nextBarber?.fullName,
+                    photoUrl = nextBarber?.avatarUrl ?: nextBarber?.selfieUrl,
+                    size = 46.dp,
+                    borderWidth = 2.dp,
+                    fontSize = 20.sp
+                )
 
                 Spacer(modifier = Modifier.width(10.dp))
 

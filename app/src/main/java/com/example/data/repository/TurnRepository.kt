@@ -65,8 +65,8 @@ class TurnRepository {
         if (rawUrl.isNullOrBlank()) return null
         val trimmed = rawUrl.trim()
 
-        // 1. Full HTTPS/HTTP URL
-        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+        // 1. Full HTTPS/HTTP URL or Data URI
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("data:image/")) {
             return trimmed
         }
 
@@ -246,13 +246,13 @@ class TurnRepository {
                     val bId = asistencia.profileId ?: asistencia.barberoId ?: asistencia.profiles?.id ?: "unknown"
                     val prof = asistencia.profiles ?: profilesMap[bId] ?: profilesMap[asistencia.profileId] ?: profilesMap[asistencia.barberoId]
 
-                    val name = prof?.fullName?.ifBlank { null }
-                        ?: asistencia.profiles?.fullName?.ifBlank { null }
+                    val name = prof?.getEffectiveName()
+                        ?: asistencia.profiles?.getEffectiveName()
                         ?: "Barbero #${bId.takeLast(4)}"
 
-                    val rawAvatar = prof?.avatarUrl?.ifBlank { null }
-                        ?: asistencia.profiles?.avatarUrl?.ifBlank { null }
-                    val rawSelfie = asistencia.selfieUrl?.ifBlank { null }
+                    val rawAvatar = prof?.getEffectiveAvatar()
+                        ?: asistencia.profiles?.getEffectiveAvatar()
+                    val rawSelfie = asistencia.getEffectiveSelfie()
 
                     val resolvedAvatar = resolveImageUrl(rawAvatar, settings.url)
                     val resolvedSelfie = resolveImageUrl(rawSelfie, settings.url)
@@ -295,12 +295,12 @@ class TurnRepository {
                 }
                 filteredProf.map { prof ->
                     val bId = prof.id ?: "unknown"
-                    val name = prof.fullName?.ifBlank { null } ?: "Barbero #${bId.takeLast(4)}"
+                    val name = prof.getEffectiveName() ?: "Barbero #${bId.takeLast(4)}"
                     val completed = completedCountMap[bId] ?: 0
                     val lastComp = lastCompletedAtMap[bId]
                     val activeInfo = activeCitasMap[bId]
 
-                    val resolvedAvatar = resolveImageUrl(prof.avatarUrl, settings.url)
+                    val resolvedAvatar = resolveImageUrl(prof.getEffectiveAvatar(), settings.url)
 
                     Barber(
                         id = bId,

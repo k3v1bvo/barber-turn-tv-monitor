@@ -167,40 +167,14 @@ fun ActiveBarberItem(barber: Barber) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Avatar
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(EmeraldLive.copy(alpha = 0.3f))
-                        .padding(2.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF27272A)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val photoUrl = barber.avatarUrl?.ifBlank { null } ?: barber.selfieUrl
-                    if (!photoUrl.isNullOrBlank()) {
-                        val context = androidx.compose.ui.platform.LocalContext.current
-                        AsyncImage(
-                            model = coil.request.ImageRequest.Builder(context)
-                                .data(photoUrl)
-                                .size(120, 120)
-                                .crossfade(150)
-                                .allowHardware(false)
-                                .build(),
-                            contentDescription = barber.fullName,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        val initial = barber.fullName.firstOrNull()?.uppercaseChar()?.toString() ?: "B"
-                        Text(
-                            text = initial,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = EmeraldLive
-                        )
-                    }
-                }
+                BarberAvatar(
+                    fullName = barber.fullName,
+                    photoUrl = barber.avatarUrl ?: barber.selfieUrl,
+                    size = 42.dp,
+                    borderWidth = 2.dp,
+                    borderColor = EmeraldLive,
+                    fontSize = 18.sp
+                )
 
                 Spacer(modifier = Modifier.width(12.dp))
 

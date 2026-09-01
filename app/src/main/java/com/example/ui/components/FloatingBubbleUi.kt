@@ -124,71 +124,13 @@ fun FloatingBubbleUi(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Barber Photo Avatar or Fallback Badge
-                    val pillPhotoUrl = currentBarber?.avatarUrl?.ifBlank { null } ?: currentBarber?.selfieUrl
-                    if (!pillPhotoUrl.isNullOrBlank()) {
-                        val context = androidx.compose.ui.platform.LocalContext.current
-                        SubcomposeAsyncImage(
-                            model = coil.request.ImageRequest.Builder(context)
-                                .data(pillPhotoUrl)
-                                .size(96, 96)
-                                .crossfade(true)
-                                .diskCachePolicy(coil.request.CachePolicy.ENABLED)
-                                .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
-                                .allowHardware(false)
-                                .build(),
-                            contentDescription = currentBarber?.fullName,
-                            modifier = Modifier
-                                .size(30.dp)
-                                .clip(CircleShape)
-                                .border(1.5.dp, BarberGold, CircleShape),
-                            contentScale = ContentScale.Crop,
-                            loading = {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color(0xFF1E293B)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(12.dp),
-                                        color = BarberGold,
-                                        strokeWidth = 1.5.dp
-                                    )
-                                }
-                            },
-                            error = {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(BarberGold),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = currentBarber?.fullName?.take(1)?.uppercase() ?: "💈",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = Color.Black
-                                    )
-                                }
-                            }
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .clip(CircleShape)
-                                .background(BarberGold),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = currentBarber?.fullName?.take(1)?.uppercase() ?: "💈",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Color.Black
-                            )
-                        }
-                    }
+                    // Bulletproof Barber Avatar (Guaranteed NO black boxes)
+                    BarberAvatar(
+                        fullName = currentBarber?.fullName,
+                        photoUrl = currentBarber?.avatarUrl ?: currentBarber?.selfieUrl,
+                        size = 30.dp,
+                        borderWidth = 1.5.dp
+                    )
 
                     Spacer(modifier = Modifier.width(8.dp))
 
@@ -324,70 +266,12 @@ fun FloatingBubbleUi(
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val photoUrl = currentBarber?.avatarUrl?.ifBlank { null } ?: currentBarber?.selfieUrl
-                            if (!photoUrl.isNullOrBlank()) {
-                                val context = androidx.compose.ui.platform.LocalContext.current
-                                SubcomposeAsyncImage(
-                                    model = coil.request.ImageRequest.Builder(context)
-                                        .data(photoUrl)
-                                        .size(160, 160)
-                                        .crossfade(true)
-                                        .diskCachePolicy(coil.request.CachePolicy.ENABLED)
-                                        .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
-                                        .allowHardware(false)
-                                        .build(),
-                                    contentDescription = currentBarber?.fullName,
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(CircleShape)
-                                        .border(2.dp, BarberGold, CircleShape),
-                                    contentScale = ContentScale.Crop,
-                                    loading = {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .background(Color(0xFF1E293B)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(16.dp),
-                                                color = BarberGold,
-                                                strokeWidth = 2.dp
-                                            )
-                                        }
-                                    },
-                                    error = {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .background(BarberGold),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = currentBarber?.fullName?.take(1)?.uppercase() ?: "B",
-                                                color = Color.Black,
-                                                fontSize = 18.sp,
-                                                fontWeight = FontWeight.Black
-                                            )
-                                        }
-                                    }
-                                )
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(CircleShape)
-                                        .background(BarberGold),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = currentBarber?.fullName?.take(1)?.uppercase() ?: "B",
-                                        color = Color.Black,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Black
-                                    )
-                                }
-                            }
+                            BarberAvatar(
+                                fullName = currentBarber?.fullName,
+                                photoUrl = currentBarber?.avatarUrl ?: currentBarber?.selfieUrl,
+                                size = 46.dp,
+                                borderWidth = 2.dp
+                            )
 
                             Spacer(modifier = Modifier.width(10.dp))
 

@@ -136,45 +136,13 @@ fun HeroNextTurnCard(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Avatar Image
-                    Box(
-                        modifier = Modifier
-                            .size(68.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.sweepGradient(
-                                    listOf(BarberGold, Color(0xFFFDE68A), BarberGoldVariant, BarberGold)
-                                )
-                            )
-                            .padding(3.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF18181B)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val photoUrl = barber.avatarUrl?.ifBlank { null } ?: barber.selfieUrl
-                        if (!photoUrl.isNullOrBlank()) {
-                            val context = androidx.compose.ui.platform.LocalContext.current
-                            AsyncImage(
-                                model = coil.request.ImageRequest.Builder(context)
-                                    .data(photoUrl)
-                                    .size(180, 180)
-                                    .crossfade(150)
-                                    .allowHardware(false)
-                                    .build(),
-                                contentDescription = barber.fullName,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            val initial = barber.fullName.firstOrNull()?.uppercaseChar()?.toString() ?: "B"
-                            Text(
-                                text = initial,
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.Black,
-                                color = BarberGold
-                            )
-                        }
-                    }
+                    // Avatar Image                    BarberAvatar(
+                        fullName = barber.fullName,
+                        photoUrl = barber.avatarUrl ?: barber.selfieUrl,
+                        size = 60.dp,
+                        borderWidth = 2.dp,
+                        fontSize = 24.sp
+                    )}
 
                     Spacer(modifier = Modifier.width(12.dp))
 
@@ -294,44 +262,13 @@ fun HeroNextTurnCard(
                     modifier = Modifier.weight(1f)
                 ) {
                     // Avatar Image with Gold Glowing Ring
-                    Box(
-                        modifier = Modifier
-                            .size(110.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.sweepGradient(
-                                    listOf(BarberGold, Color(0xFFFDE68A), BarberGoldVariant, BarberGold)
-                                )
-                            )
-                            .padding(4.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF18181B)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val photoUrl = barber.avatarUrl?.ifBlank { null } ?: barber.selfieUrl
-                        if (!photoUrl.isNullOrBlank()) {
-                            val context = androidx.compose.ui.platform.LocalContext.current
-                            AsyncImage(
-                                model = coil.request.ImageRequest.Builder(context)
-                                    .data(photoUrl)
-                                    .size(180, 180)
-                                    .crossfade(150)
-                                    .allowHardware(false)
-                                    .build(),
-                                contentDescription = barber.fullName,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            val initial = barber.fullName.firstOrNull()?.uppercaseChar()?.toString() ?: "B"
-                            Text(
-                                text = initial,
-                                fontSize = 42.sp,
-                                fontWeight = FontWeight.Black,
-                                color = BarberGold
-                            )
-                        }
-                    }
+                    BarberAvatar(
+                        fullName = barber.fullName,
+                        photoUrl = barber.avatarUrl ?: barber.selfieUrl,
+                        size = 100.dp,
+                        borderWidth = 3.dp,
+                        fontSize = 38.sp
+                    )
 
                     Spacer(modifier = Modifier.width(20.dp))
 

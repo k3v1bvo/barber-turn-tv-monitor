@@ -125,18 +125,14 @@ fun MiniBarberoOverlay(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (barber != null) {
-                        if (!barber.avatarUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = barber.avatarUrl,
-                                contentDescription = barber.fullName,
-                                modifier = Modifier
-                                    .size(18.dp)
-                                    .clip(CircleShape)
-                                    .border(1.dp, Color(0x80F59E0B), CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
-                        }
+                        BarberAvatar(
+                            fullName = barber.fullName,
+                            photoUrl = barber.avatarUrl ?: barber.selfieUrl,
+                            size = 18.dp,
+                            borderWidth = 1.dp,
+                            fontSize = 9.sp
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
 
                         // Subtle availability dot next to barber name
                         BarberAvailabilityDot(

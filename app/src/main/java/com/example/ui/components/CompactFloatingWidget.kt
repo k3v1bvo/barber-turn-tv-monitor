@@ -141,32 +141,13 @@ fun CompactFloatingWidget(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(52.dp)
-                                    .clip(CircleShape)
-                                    .background(BarberGold)
-                                    .padding(2.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.DarkGray),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (!nextBarber.avatarUrl.isNullOrBlank()) {
-                                    AsyncImage(
-                                        model = nextBarber.avatarUrl,
-                                        contentDescription = nextBarber.fullName,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Person,
-                                        contentDescription = null,
-                                        tint = TextWhite,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                            }
+                            BarberAvatar(
+                                fullName = nextBarber.fullName,
+                                photoUrl = nextBarber.avatarUrl ?: nextBarber.selfieUrl,
+                                size = 52.dp,
+                                borderWidth = 2.dp,
+                                fontSize = 22.sp
+                            )
 
                             Spacer(modifier = Modifier.width(12.dp))
 
