@@ -72,10 +72,11 @@ object AdbHelper {
         context: Context,
         targetIp: String = "127.0.0.1",
         targetPort: Int = 5555,
-        targetPackage: String = "com.aistudio.barberturnostv.kxmpzq"
+        targetPackage: String = context.packageName
     ): AdbResult = withContext(Dispatchers.IO) {
         var socket: Socket? = null
         val cleanIp = targetIp.trim().ifBlank { "127.0.0.1" }
+        val pkg = targetPackage.ifBlank { context.packageName }
 
         try {
             val keyPair = getOrGenerateKeyPair(context)
@@ -160,8 +161,8 @@ object AdbHelper {
                 )
             }
 
-            // 2. Send Shell Commands to grant overlay and permissions
-            val shellCommand = "shell:appops set $targetPackage SYSTEM_ALERT_WINDOW allow; pm grant $targetPackage android.permission.SYSTEM_ALERT_WINDOW\u0000"
+            // 2. Send Shell Commands to grant overlay and permissions (both string and opcode 24 for Xiaomi MIUI compatibility)
+            val shellCommand = "shell:appops set $pkg SYSTEM_ALERT_WINDOW allow; appops set $pkg 24 allow; pm grant $pkg android.permission.SYSTEM_ALERT_WINDOW\u0000"
             val commandPayload = shellCommand.toByteArray(Charsets.UTF_8)
             writeMessage(outputStream, A_OPEN, 1, 0, commandPayload)
 
