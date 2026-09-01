@@ -16,10 +16,8 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.Toast
-import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.AndroidUiDispatcher
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.app.NotificationCompat
@@ -213,13 +211,6 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
                 setViewTreeLifecycleOwner(this@FloatingTurnBubbleService)
                 setViewTreeViewModelStoreOwner(this@FloatingTurnBubbleService)
                 setViewTreeSavedStateRegistryOwner(this@FloatingTurnBubbleService)
-
-                val coroutineContext = AndroidUiDispatcher.CurrentThread
-                val recomposer = Recomposer(coroutineContext)
-                compositionContext = recomposer
-                serviceScope.launch(coroutineContext) {
-                    recomposer.runRecomposeAndApplyChanges()
-                }
 
                 setContent {
                     BarberTvTheme {
