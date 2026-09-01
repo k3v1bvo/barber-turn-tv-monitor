@@ -60,7 +60,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.CircularProgressIndicator
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import com.example.data.model.Barber
 import com.example.data.model.TurnBoardState
 import com.example.ui.theme.BarberGold
@@ -126,11 +128,13 @@ fun FloatingBubbleUi(
                     val pillPhotoUrl = currentBarber?.avatarUrl?.ifBlank { null } ?: currentBarber?.selfieUrl
                     if (!pillPhotoUrl.isNullOrBlank()) {
                         val context = androidx.compose.ui.platform.LocalContext.current
-                        AsyncImage(
+                        SubcomposeAsyncImage(
                             model = coil.request.ImageRequest.Builder(context)
                                 .data(pillPhotoUrl)
-                                .size(80, 80)
-                                .crossfade(150)
+                                .size(96, 96)
+                                .crossfade(true)
+                                .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                                .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                                 .allowHardware(false)
                                 .build(),
                             contentDescription = currentBarber?.fullName,
@@ -138,7 +142,36 @@ fun FloatingBubbleUi(
                                 .size(30.dp)
                                 .clip(CircleShape)
                                 .border(1.5.dp, BarberGold, CircleShape),
-                            contentScale = ContentScale.Crop
+                            contentScale = ContentScale.Crop,
+                            loading = {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color(0xFF1E293B)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(12.dp),
+                                        color = BarberGold,
+                                        strokeWidth = 1.5.dp
+                                    )
+                                }
+                            },
+                            error = {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(BarberGold),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = currentBarber?.fullName?.take(1)?.uppercase() ?: "💈",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color.Black
+                                    )
+                                }
+                            }
                         )
                     } else {
                         Box(
@@ -294,10 +327,10 @@ fun FloatingBubbleUi(
                             val photoUrl = currentBarber?.avatarUrl?.ifBlank { null } ?: currentBarber?.selfieUrl
                             if (!photoUrl.isNullOrBlank()) {
                                 val context = androidx.compose.ui.platform.LocalContext.current
-                                AsyncImage(
+                                SubcomposeAsyncImage(
                                     model = coil.request.ImageRequest.Builder(context)
                                         .data(photoUrl)
-                                        .size(128, 128)
+                                        .size(160, 160)
                                         .crossfade(true)
                                         .diskCachePolicy(coil.request.CachePolicy.ENABLED)
                                         .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
@@ -308,7 +341,36 @@ fun FloatingBubbleUi(
                                         .size(42.dp)
                                         .clip(CircleShape)
                                         .border(2.dp, BarberGold, CircleShape),
-                                    contentScale = ContentScale.Crop
+                                    contentScale = ContentScale.Crop,
+                                    loading = {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(Color(0xFF1E293B)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(16.dp),
+                                                color = BarberGold,
+                                                strokeWidth = 2.dp
+                                            )
+                                        }
+                                    },
+                                    error = {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(BarberGold),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = currentBarber?.fullName?.take(1)?.uppercase() ?: "B",
+                                                color = Color.Black,
+                                                fontSize = 18.sp,
+                                                fontWeight = FontWeight.Black
+                                            )
+                                        }
+                                    }
                                 )
                             } else {
                                 Box(
@@ -319,7 +381,7 @@ fun FloatingBubbleUi(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = currentBarber?.fullName?.take(1) ?: "B",
+                                        text = currentBarber?.fullName?.take(1)?.uppercase() ?: "B",
                                         color = Color.Black,
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.Black

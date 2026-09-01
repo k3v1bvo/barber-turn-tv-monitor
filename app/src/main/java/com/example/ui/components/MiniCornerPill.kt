@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.SubcomposeAsyncImage
 import coil.compose.AsyncImage
 import com.example.data.model.TurnBoardState
 import com.example.ui.theme.BarberGold
@@ -114,14 +115,17 @@ fun MiniCornerPill(
                     ) {
                         val photoUrl = barber?.avatarUrl?.ifBlank { null } ?: barber?.selfieUrl
                         if (!photoUrl.isNullOrBlank()) {
-                            AsyncImage(
+                            SubcomposeAsyncImage(
                                 model = photoUrl,
                                 contentDescription = barber?.fullName,
                                 modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
+                                contentScale = ContentScale.Crop,
+                                error = {
+                                    Text(text = barber?.fullName?.take(1)?.uppercase() ?: "💈", fontSize = 10.sp, color = BarberGold)
+                                }
                             )
                         } else {
-                            Text(text = "💈", fontSize = 10.sp)
+                            Text(text = barber?.fullName?.take(1)?.uppercase() ?: "💈", fontSize = 10.sp, color = BarberGold)
                         }
                     }
 
