@@ -199,7 +199,6 @@ class MainActivity : ComponentActivity() {
     private fun startBubbleServiceSafely() {
         try {
             FloatingTurnBubbleService.start(this)
-            Toast.makeText(this, "💈 Burbuja Flotante activada sobre todas las apps", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             Toast.makeText(this, "No se pudo iniciar la burbuja: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
             showTvOverlayDialog = true

@@ -269,9 +269,45 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
             }
 
             floatingView = composeView
-            windowManager?.addView(composeView, layoutParams)
+
+            // Try adding view to WindowManager with fallbacks for Xiaomi TV / custom TV ROMs
+            var addedSuccessfully = false
+            try {
+                windowManager?.addView(composeView, layoutParams)
+                addedSuccessfully = true
+            } catch (e: Exception) {
+                Log.w(TAG, "TYPE_APPLICATION_OVERLAY failed on TV, trying TYPE_PHONE fallback", e)
+                try {
+                    layoutParams?.type = @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+                    windowManager?.addView(composeView, layoutParams)
+                    addedSuccessfully = true
+                } catch (e2: Exception) {
+                    Log.w(TAG, "TYPE_PHONE failed on TV, trying TYPE_SYSTEM_ALERT fallback", e2)
+                    try {
+                        layoutParams?.type = @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
+                        windowManager?.addView(composeView, layoutParams)
+                        addedSuccessfully = true
+                    } catch (e3: Exception) {
+                        Log.e(TAG, "All overlay types failed to add view on TV Box", e3)
+                        throw e3
+                    }
+                }
+            }
+
+            if (addedSuccessfully) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    Toast.makeText(applicationContext, "💈 Burbuja Flotante activada sobre todas las apps", Toast.LENGTH_SHORT).show()
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error adding floating overlay view", e)
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                Toast.makeText(
+                    applicationContext,
+                    "No se pudo mostrar la burbuja: ${e.localizedMessage ?: "Verifica permisos en Ajustes"}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
             // Notify MainActivity to re-show the overlay permission dialog
             val failIntent = Intent(ACTION_OVERLAY_FAILED).apply {
                 setPackage(applicationContext.packageName)
