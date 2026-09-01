@@ -163,15 +163,20 @@ object AdbHelper {
 
             // 2. Send Shell Commands to grant overlay and permissions across standard Android and Xiaomi/MIUI TV
             val commands = listOf(
+                "pm grant $pkg android.permission.SYSTEM_ALERT_WINDOW",
                 "appops set $pkg SYSTEM_ALERT_WINDOW allow",
+                "appops set --user 0 $pkg SYSTEM_ALERT_WINDOW allow",
                 "cmd appops set $pkg SYSTEM_ALERT_WINDOW allow",
                 "appops set $pkg 24 allow",
+                "appops set --user 0 $pkg 24 allow",
                 "cmd appops set $pkg 24 allow",
                 "appops set $pkg 10021 allow",
+                "appops set --user 0 $pkg 10021 allow",
                 "cmd appops set $pkg 10021 allow",
                 "appops set $pkg 10022 allow",
+                "appops set --user 0 $pkg 10022 allow",
                 "cmd appops set $pkg 10022 allow",
-                "pm grant $pkg android.permission.SYSTEM_ALERT_WINDOW"
+                "settings put secure overlay_permission_enabled 1"
             ).joinToString("; ")
 
             val shellCommand = "shell:$commands\u0000"
