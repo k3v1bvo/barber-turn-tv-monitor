@@ -112,10 +112,11 @@ fun MiniCornerPill(
                             .background(Color(0xFF27272A)),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (barber != null && !barber.avatarUrl.isNullOrBlank()) {
+                        val photoUrl = barber?.avatarUrl?.ifBlank { null } ?: barber?.selfieUrl
+                        if (!photoUrl.isNullOrBlank()) {
                             AsyncImage(
-                                model = barber.avatarUrl,
-                                contentDescription = barber.fullName,
+                                model = photoUrl,
+                                contentDescription = barber?.fullName,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
                             )

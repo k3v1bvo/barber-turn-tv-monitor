@@ -122,15 +122,39 @@ fun FloatingBubbleUi(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Barber pole emoji badge
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(BarberGold),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = "💈", fontSize = 15.sp)
+                    // Barber Photo Avatar or Fallback Badge
+                    val pillPhotoUrl = currentBarber?.avatarUrl?.ifBlank { null } ?: currentBarber?.selfieUrl
+                    if (!pillPhotoUrl.isNullOrBlank()) {
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        AsyncImage(
+                            model = coil.request.ImageRequest.Builder(context)
+                                .data(pillPhotoUrl)
+                                .size(80, 80)
+                                .crossfade(150)
+                                .allowHardware(false)
+                                .build(),
+                            contentDescription = currentBarber?.fullName,
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .border(1.5.dp, BarberGold, CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(BarberGold),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = currentBarber?.fullName?.take(1)?.uppercase() ?: "💈",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.Black
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(8.dp))

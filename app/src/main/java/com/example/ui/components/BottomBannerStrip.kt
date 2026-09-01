@@ -99,10 +99,11 @@ fun BottomBannerStrip(
                         .background(Color.DarkGray),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (nextBarber != null && !nextBarber.avatarUrl.isNullOrBlank()) {
+                    val photoUrl = nextBarber?.avatarUrl?.ifBlank { null } ?: nextBarber?.selfieUrl
+                    if (!photoUrl.isNullOrBlank()) {
                         AsyncImage(
-                            model = nextBarber.avatarUrl,
-                            contentDescription = nextBarber.fullName,
+                            model = photoUrl,
+                            contentDescription = nextBarber?.fullName,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
