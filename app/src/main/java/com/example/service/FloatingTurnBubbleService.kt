@@ -183,6 +183,10 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
 
     @SuppressLint("ClickableViewAccessibility")
     private fun initWindowManagerView() {
+        if (floatingView != null) {
+            removeFloatingView()
+        }
+
         try {
             windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
@@ -269,38 +273,14 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
             }
 
             floatingView = composeView
+            windowManager?.addView(composeView, layoutParams)
 
-            // Try adding view to WindowManager with fallbacks for Xiaomi TV / custom TV ROMs
-            var addedSuccessfully = false
-            try {
-                windowManager?.addView(composeView, layoutParams)
-                addedSuccessfully = true
-            } catch (e: Exception) {
-                Log.w(TAG, "TYPE_APPLICATION_OVERLAY failed on TV, trying TYPE_PHONE fallback", e)
-                try {
-                    layoutParams?.type = @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
-                    windowManager?.addView(composeView, layoutParams)
-                    addedSuccessfully = true
-                } catch (e2: Exception) {
-                    Log.w(TAG, "TYPE_PHONE failed on TV, trying TYPE_SYSTEM_ALERT fallback", e2)
-                    try {
-                        layoutParams?.type = @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
-                        windowManager?.addView(composeView, layoutParams)
-                        addedSuccessfully = true
-                    } catch (e3: Exception) {
-                        Log.e(TAG, "All overlay types failed to add view on TV Box", e3)
-                        throw e3
-                    }
-                }
-            }
-
-            if (addedSuccessfully) {
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    Toast.makeText(applicationContext, "💈 Burbuja Flotante activada sobre todas las apps", Toast.LENGTH_SHORT).show()
-                }
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                Toast.makeText(applicationContext, "💈 Burbuja Flotante activada sobre todas las apps", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error adding floating overlay view", e)
+            removeFloatingView()
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 Toast.makeText(
                     applicationContext,
@@ -315,6 +295,21 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
             sendBroadcast(failIntent)
             stopSelf()
         }
+    }
+
+    private fun removeFloatingView() {
+        floatingView?.let { view ->
+            try {
+                if (view.isAttachedToWindow) {
+                    windowManager?.removeViewImmediate(view)
+                } else {
+                    windowManager?.removeView(view)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error removing floating view", e)
+            }
+        }
+        floatingView = null
     }
 
     private fun observeSettingsAndRealtime() {
@@ -410,12 +405,7 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
         pollingJob?.cancel()
         serviceScope.cancel()
 
-        floatingView?.let {
-            try {
-                windowManager?.removeView(it)
-            } catch (_: Exception) {}
-        }
-        floatingView = null
+        removeFloatingView()
         super.onDestroy()
     }
 }
