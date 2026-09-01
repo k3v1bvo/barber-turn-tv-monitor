@@ -64,16 +64,31 @@ class TurnRepository {
     fun resolveImageUrl(rawUrl: String?, baseUrl: String): String? {
         if (rawUrl.isNullOrBlank()) return null
         val trimmed = rawUrl.trim()
+
+        // 1. Full HTTPS/HTTP URL
         if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
             return trimmed
         }
+
         val cleanBase = baseUrl.trim().removeSuffix("/")
-        return when {
-            trimmed.startsWith("asistencias-selfies/") -> "$cleanBase/storage/v1/object/public/$trimmed"
-            trimmed.startsWith("avatars/") || trimmed.startsWith("perfiles/") -> "$cleanBase/storage/v1/object/public/$trimmed"
-            trimmed.contains("/") -> "$cleanBase/storage/v1/object/public/asistencias-selfies/$trimmed"
-            else -> "$cleanBase/storage/v1/object/public/avatars/$trimmed"
+
+        // 2. Relative paths starting with slash (e.g. "/storage/v1/object/public/avatars/foto.jpg")
+        if (trimmed.startsWith("/")) {
+            return "$cleanBase$trimmed"
         }
+
+        // 3. Relative paths starting with "storage/"
+        if (trimmed.startsWith("storage/")) {
+            return "$cleanBase/$trimmed"
+        }
+
+        // 4. Relative paths starting with bucket names
+        if (trimmed.startsWith("asistencias-selfies/") || trimmed.startsWith("avatars/") || trimmed.startsWith("perfiles/")) {
+            return "$cleanBase/storage/v1/object/public/$trimmed"
+        }
+
+        // 5. Default fallback to avatars bucket
+        return "$cleanBase/storage/v1/object/public/avatars/$trimmed"
     }
 
     suspend fun fetchTurnBoardState(

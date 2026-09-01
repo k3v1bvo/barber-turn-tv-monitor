@@ -297,8 +297,10 @@ fun FloatingBubbleUi(
                                 AsyncImage(
                                     model = coil.request.ImageRequest.Builder(context)
                                         .data(photoUrl)
-                                        .size(100, 100)
-                                        .crossfade(150)
+                                        .size(128, 128)
+                                        .crossfade(true)
+                                        .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                                        .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                                         .allowHardware(false)
                                         .build(),
                                     contentDescription = currentBarber?.fullName,
