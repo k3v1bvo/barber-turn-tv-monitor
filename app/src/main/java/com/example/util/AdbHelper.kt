@@ -91,41 +91,49 @@ object AdbHelper {
             val cnxnBanner = "host::BarberSiteTV\u0000".toByteArray(Charsets.UTF_8)
             writeMessage(outputStream, A_CNXN, A_VERSION, MAX_PAYLOAD, cnxnBanner)
 
+            var signatureSent = false
             var isAuthenticated = false
-            var promptTriggered = false
 
             // Handshake loop (handles token challenge and RSA public key exchange)
             for (step in 0 until 6) {
                 val header = readHeader(inputStream) ?: break
-                val payload = if (header.dataLength > 0) readPayload(inputStream, header.dataLength) else ByteArray(0)
+                if (header.dataLength > 0 && header.command != A_AUTH && header.command != A_CNXN) {
+                    skipBytes(inputStream, header.dataLength)
+                }
 
                 when (header.command) {
                     A_CNXN -> {
                         // Successfully authenticated & connected!
+                        if (header.dataLength > 0) {
+                            skipBytes(inputStream, header.dataLength)
+                        }
                         isAuthenticated = true
                         break
                     }
                     A_AUTH -> {
                         val authType = header.arg0
-                        if (authType == ADB_AUTH_TOKEN && !promptTriggered) {
-                            // Try signature first
+                        val payload = if (header.dataLength > 0) readPayload(inputStream, header.dataLength) else ByteArray(0)
+
+                        if (!signatureSent) {
+                            // Step 1: Attempt to authenticate with RSA signature first
                             try {
                                 val signature = signToken(payload, keyPair.private as RSAPrivateKey)
                                 writeMessage(outputStream, A_AUTH, ADB_AUTH_SIGNATURE, 0, signature)
+                                signatureSent = true
                             } catch (e: Exception) {
-                                // Fallback: Send formatted RSA Public Key directly
+                                Log.w(TAG, "Failed to sign token, falling back to public key", e)
                                 val pubKeyPayload = convertRsaPublicKeyToAdbFormat(keyPair.public as RSAPublicKey, "BarberSiteTV")
                                 writeMessage(outputStream, A_AUTH, ADB_AUTH_RSAPUBLICKEY, 0, pubKeyPayload)
-                                promptTriggered = true
+                                signatureSent = true
                             }
                         } else {
-                            // Server rejected signature or requested public key: send RSAPublicKey to display prompt on TV
+                            // Step 2: Signature was sent but adbd sent another A_AUTH -> key is not yet trusted on TV!
+                            // Send RSAPublicKey to force Android TV to display the "¿Permitir depuración USB?" popup on screen!
                             val pubKeyPayload = convertRsaPublicKeyToAdbFormat(keyPair.public as RSAPublicKey, "BarberSiteTV")
                             writeMessage(outputStream, A_AUTH, ADB_AUTH_RSAPUBLICKEY, 0, pubKeyPayload)
-                            promptTriggered = true
 
-                            // Wait up to 10s for the user to tap "Aceptar" on the TV screen
-                            socket.soTimeout = 10000
+                            // Give the TV OS time to show the popup and wait for the user to press "Aceptar" with remote
+                            socket.soTimeout = 12000
                             val confirmHeader = readHeader(inputStream)
                             if (confirmHeader != null && confirmHeader.command == A_CNXN) {
                                 if (confirmHeader.dataLength > 0) {
@@ -135,13 +143,13 @@ object AdbHelper {
                                 break
                             } else {
                                 return@withContext AdbResult.NeedsAuth(
-                                    "⚠️ Mira la pantalla de la TV y pulsa 'Aceptar' en el cartel de '¿Permitir depuración USB?' que acaba de aparecer, luego vuelve a tocar este botón."
+                                    "📺 ¡MIRA LA TV! Ha aparecido un cartel en la pantalla. Selecciona 'Permitir siempre' y presiona 'Aceptar' con el control remoto, y luego vuelve a tocar este botón."
                                 )
                             }
                         }
                     }
                     else -> {
-                        Log.d(TAG, "Received other command: 0x${Integer.toHexString(header.command)}")
+                        Log.d(TAG, "Received command: 0x${Integer.toHexString(header.command)}")
                     }
                 }
             }
