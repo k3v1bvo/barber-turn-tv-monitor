@@ -1,29 +1,60 @@
 package com.example.util
 
+import android.content.Context
+import android.net.wifi.WifiManager
+import android.os.Build
+import android.util.Base64
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.OutputStream
+import java.math.BigInteger
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.security.KeyFactory
+import java.security.KeyPair
+import java.security.KeyPairGenerator
+import java.security.interfaces.RSAPrivateKey
+import java.security.interfaces.RSAPublicKey
+import java.security.spec.PKCS8EncodedKeySpec
+import java.security.spec.X509EncodedKeySpec
+import java.util.Collections
+import javax.crypto.Cipher
 
 /**
- * Lightweight Pure Kotlin ADB Client:
- * Connects directly to Android TV (localhost 127.0.0.1 or remote IP over Wi-Fi) on port 5555
- * and executes "appops set <package> SYSTEM_ALERT_WINDOW allow" without needing external apps.
+ * Pure Kotlin ADB Client with full RSA Cryptography & Wi-Fi Scanner:
+ *
+ * 1. Self-contained 2048-bit RSA Key generation & persistence.
+ * 2. Complete AOSP ADB Protocol Handshake (CNXN -> AUTH Token -> Signature -> RSAPublicKey -> Open Shell).
+ * 3. Triggers the real "¿Permitir depuración USB?" dialog on Xiaomi TV Box / Android TV screen.
+ * 4. Subnet Wi-Fi Auto-Discovery: finds TV Box on the local network in under 2 seconds.
+ * 5. Grants SYSTEM_ALERT_WINDOW overlay permission permanently.
  */
 object AdbHelper {
 
     private const val TAG = "AdbHelper"
-    private const val A_CNXN = 0x4e584e43
-    private const val A_AUTH = 0x48545541
-    private const val A_OPEN = 0x4e45504f
-    private const val A_OKAY = 0x59414b4f
-    private const val A_CLSE = 0x45534c43
-    private const val A_WRTE = 0x45545257
+    private const val PREFS_NAME = "barber_adb_crypto_prefs"
+    private const val KEY_PRIVATE = "adb_rsa_private_key"
+    private const val KEY_PUBLIC = "adb_rsa_public_key"
+
+    // ADB Protocol Command Constants
+    private const val A_CNXN = 0x4e584e43 // "CNXN"
+    private const val A_AUTH = 0x48545541 // "AUTH"
+    private const val A_OPEN = 0x4e45504f // "OPEN"
+    private const val A_OKAY = 0x59414b4f // "OKAY"
+    private const val A_CLSE = 0x45534c43 // "CLSE"
+    private const val A_WRTE = 0x45545257 // "WRTE"
+
+    // Auth Subtypes
+    private const val ADB_AUTH_TOKEN = 1
+    private const val ADB_AUTH_SIGNATURE = 2
+    private const val ADB_AUTH_RSAPUBLICKEY = 3
 
     private const val A_VERSION = 0x01000000
     private const val MAX_PAYLOAD = 4096
@@ -34,66 +65,116 @@ object AdbHelper {
         data class Error(val message: String) : AdbResult()
     }
 
+    /**
+     * Executes ADB command to grant overlay permission on local TV (127.0.0.1) or remote TV (IP).
+     */
     suspend fun grantOverlayPermission(
+        context: Context,
         targetIp: String = "127.0.0.1",
         targetPort: Int = 5555,
         targetPackage: String = "com.aistudio.barberturnostv.kxmpzq"
     ): AdbResult = withContext(Dispatchers.IO) {
         var socket: Socket? = null
+        val cleanIp = targetIp.trim().ifBlank { "127.0.0.1" }
+
         try {
+            val keyPair = getOrGenerateKeyPair(context)
+
             socket = Socket()
-            val cleanIp = targetIp.trim().ifBlank { "127.0.0.1" }
-            socket.connect(InetSocketAddress(cleanIp, targetPort), 4000)
-            socket.soTimeout = 5000
+            socket.connect(InetSocketAddress(cleanIp, targetPort), 4500)
+            socket.soTimeout = 7000
 
             val inputStream = socket.getInputStream()
             val outputStream = socket.getOutputStream()
 
-            // 1. Send CNXN Packet
-            val cnxnPayload = "host::BarberSiteTV\u0000".toByteArray(Charsets.UTF_8)
-            writeMessage(outputStream, A_CNXN, A_VERSION, MAX_PAYLOAD, cnxnPayload)
+            // 1. Send initial CNXN packet
+            val cnxnBanner = "host::BarberSiteTV\u0000".toByteArray(Charsets.UTF_8)
+            writeMessage(outputStream, A_CNXN, A_VERSION, MAX_PAYLOAD, cnxnBanner)
 
-            // 2. Read Response from TV
-            val header = readHeader(inputStream) ?: return@withContext AdbResult.Error("No se recibió respuesta del dispositivo.")
+            var isAuthenticated = false
+            var promptTriggered = false
 
-            when (header.command) {
-                A_CNXN -> {
-                    // Connected & Authenticated! Skip payload
-                    if (header.dataLength > 0) {
-                        skipBytes(inputStream, header.dataLength)
+            // Handshake loop (handles token challenge and RSA public key exchange)
+            for (step in 0 until 6) {
+                val header = readHeader(inputStream) ?: break
+                val payload = if (header.dataLength > 0) readPayload(inputStream, header.dataLength) else ByteArray(0)
+
+                when (header.command) {
+                    A_CNXN -> {
+                        // Successfully authenticated & connected!
+                        isAuthenticated = true
+                        break
                     }
-                }
-                A_AUTH -> {
-                    // Device requires authentication confirmation on TV screen
-                    if (header.dataLength > 0) {
-                        skipBytes(inputStream, header.dataLength)
+                    A_AUTH -> {
+                        val authType = header.arg0
+                        if (authType == ADB_AUTH_TOKEN && !promptTriggered) {
+                            // Try signature first
+                            try {
+                                val signature = signToken(payload, keyPair.private as RSAPrivateKey)
+                                writeMessage(outputStream, A_AUTH, ADB_AUTH_SIGNATURE, 0, signature)
+                            } catch (e: Exception) {
+                                // Fallback: Send formatted RSA Public Key directly
+                                val pubKeyPayload = convertRsaPublicKeyToAdbFormat(keyPair.public as RSAPublicKey, "BarberSiteTV")
+                                writeMessage(outputStream, A_AUTH, ADB_AUTH_RSAPUBLICKEY, 0, pubKeyPayload)
+                                promptTriggered = true
+                            }
+                        } else {
+                            // Server rejected signature or requested public key: send RSAPublicKey to display prompt on TV
+                            val pubKeyPayload = convertRsaPublicKeyToAdbFormat(keyPair.public as RSAPublicKey, "BarberSiteTV")
+                            writeMessage(outputStream, A_AUTH, ADB_AUTH_RSAPUBLICKEY, 0, pubKeyPayload)
+                            promptTriggered = true
+
+                            // Wait up to 10s for the user to tap "Aceptar" on the TV screen
+                            socket.soTimeout = 10000
+                            val confirmHeader = readHeader(inputStream)
+                            if (confirmHeader != null && confirmHeader.command == A_CNXN) {
+                                if (confirmHeader.dataLength > 0) {
+                                    skipBytes(inputStream, confirmHeader.dataLength)
+                                }
+                                isAuthenticated = true
+                                break
+                            } else {
+                                return@withContext AdbResult.NeedsAuth(
+                                    "⚠️ Mira la pantalla de la TV y pulsa 'Aceptar' en el cartel de '¿Permitir depuración USB?' que acaba de aparecer, luego vuelve a tocar este botón."
+                                )
+                            }
+                        }
                     }
-                    return@withContext AdbResult.NeedsAuth(
-                        "⚠️ Mira la pantalla de la TV y pulsa 'Aceptar' en el mensaje de depuración USB que acaba de aparecer, luego vuelve a presionar este botón."
-                    )
-                }
-                else -> {
-                    return@withContext AdbResult.Error("Respuesta ADB inesperada: 0x${Integer.toHexString(header.command)}")
+                    else -> {
+                        Log.d(TAG, "Received other command: 0x${Integer.toHexString(header.command)}")
+                    }
                 }
             }
 
-            // 3. Send OPEN command with shell execution
-            val localId = 1
-            val commandString = "shell:appops set $targetPackage SYSTEM_ALERT_WINDOW allow\u0000"
-            val commandPayload = commandString.toByteArray(Charsets.UTF_8)
-            writeMessage(outputStream, A_OPEN, localId, 0, commandPayload)
+            if (!isAuthenticated) {
+                return@withContext AdbResult.NeedsAuth(
+                    "⚠️ En la pantalla de la TV pulsa 'Permitir siempre' y 'Aceptar' con el control remoto, y luego vuelve a presionar este botón."
+                )
+            }
 
-            // 4. Read Response (OKAY or CLSE)
+            // 2. Send Shell Commands to grant overlay and permissions
+            val shellCommand = "shell:appops set $targetPackage SYSTEM_ALERT_WINDOW allow; pm grant $targetPackage android.permission.SYSTEM_ALERT_WINDOW\u0000"
+            val commandPayload = shellCommand.toByteArray(Charsets.UTF_8)
+            writeMessage(outputStream, A_OPEN, 1, 0, commandPayload)
+
             val openResponse = readHeader(inputStream)
             if (openResponse != null && (openResponse.command == A_OKAY || openResponse.command == A_WRTE)) {
-                return@withContext AdbResult.Success("¡Permiso de superposición concedido con éxito en la TV!")
+                return@withContext AdbResult.Success("¡Permiso de superposición concedido con éxito en la TV! 🎉")
             }
 
-            return@withContext AdbResult.Success("Comando enviado a la TV.")
+            return@withContext AdbResult.Success("¡Comando enviado con éxito a la TV!")
         } catch (e: java.net.ConnectException) {
-            return@withContext AdbResult.Error("No se pudo conectar a $targetIp:$targetPort. Asegúrate de que 'Opciones de desarrollador' y 'Depuración USB/Red' estén activadas en la TV.")
+            val isLocal = cleanIp == "127.0.0.1" || cleanIp == "localhost"
+            val msg = if (isLocal) {
+                "No se pudo conectar localmente al puerto 5555. Asegúrate de activar 'Depuración USB' en los Ajustes de Desarrollador de la TV Box."
+            } else {
+                "No se pudo conectar a $cleanIp:5555. Asegúrate de que la TV y el celular estén en el mismo Wi-Fi y 'Depuración USB' esté activada en la TV."
+            }
+            return@withContext AdbResult.Error(msg)
         } catch (e: java.net.SocketTimeoutException) {
-            return@withContext AdbResult.Error("Tiempo de espera agotado al conectar a $targetIp. Verifica que la TV y el celular estén en el mismo Wi-Fi.")
+            return@withContext AdbResult.NeedsAuth(
+                "⏳ Tiempo de espera agotado. Si apareció el cartel en la TV, pulsa 'Aceptar' con el control remoto y presiona el botón nuevamente."
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Error executing ADB command", e)
             return@withContext AdbResult.Error("Error: ${e.localizedMessage ?: e.message}")
@@ -103,6 +184,152 @@ object AdbHelper {
             } catch (_: Exception) {}
         }
     }
+
+    /**
+     * Fast local Wi-Fi scanner: Scans the /24 subnet for open ADB ports (5555) in parallel.
+     * Returns a list of discovered TV Box IP addresses.
+     */
+    suspend fun scanLocalNetworkForAdb(context: Context): List<String> = withContext(Dispatchers.IO) {
+        val localIp = getLocalIpAddress(context) ?: return@withContext emptyList()
+        val subnet = localIp.substringBeforeLast(".")
+        val foundIps = Collections.synchronizedList(mutableListOf<String>())
+
+        val scanJobs = (1..254).map { i ->
+            async {
+                val ip = "$subnet.$i"
+                if (ip != localIp) {
+                    try {
+                        Socket().use { socket ->
+                            socket.connect(InetSocketAddress(ip, 5555), 350)
+                            foundIps.add(ip)
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+        scanJobs.awaitAll()
+        foundIps.toList()
+    }
+
+    /**
+     * Gets the current device's local Wi-Fi IP address.
+     */
+    @Suppress("DEPRECATION")
+    fun getLocalIpAddress(context: Context): String? {
+        try {
+            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            val wifiInfo = wifiManager?.connectionInfo
+            val ipInt = wifiInfo?.ipAddress ?: 0
+            if (ipInt != 0) {
+                return String.format(
+                    java.util.Locale.US,
+                    "%d.%d.%d.%d",
+                    ipInt and 0xff,
+                    ipInt shr 8 and 0xff,
+                    ipInt shr 16 and 0xff,
+                    ipInt shr 24 and 0xff
+                )
+            }
+
+            val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
+            while (interfaces.hasMoreElements()) {
+                val intf = interfaces.nextElement()
+                val addresses = intf.inetAddresses
+                while (addresses.hasMoreElements()) {
+                    val addr = addresses.nextElement()
+                    if (!addr.isLoopbackAddress && addr is java.net.Inet4Address) {
+                        return addr.hostAddress
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        return null
+    }
+
+    // =========================================================================
+    // RSA CRYPTOGRAPHY HELPERS FOR ADB HANDSHAKE
+    // =========================================================================
+
+    private fun getOrGenerateKeyPair(context: Context): KeyPair {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val privStr = prefs.getString(KEY_PRIVATE, null)
+        val pubStr = prefs.getString(KEY_PUBLIC, null)
+
+        if (!privStr.isNullOrBlank() && !pubStr.isNullOrBlank()) {
+            try {
+                val keyFactory = KeyFactory.getInstance("RSA")
+                val privBytes = Base64.decode(privStr, Base64.DEFAULT)
+                val pubBytes = Base64.decode(pubStr, Base64.DEFAULT)
+                val privateKey = keyFactory.generatePrivate(PKCS8EncodedKeySpec(privBytes))
+                val publicKey = keyFactory.generatePublic(X509EncodedKeySpec(pubBytes))
+                return KeyPair(publicKey, privateKey)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to restore existing RSA key, generating new one", e)
+            }
+        }
+
+        // Generate new 2048-bit RSA key pair
+        val kpg = KeyPairGenerator.getInstance("RSA")
+        kpg.initialize(2048)
+        val keyPair = kpg.generateKeyPair()
+
+        prefs.edit()
+            .putString(KEY_PRIVATE, Base64.encodeToString(keyPair.private.encoded, Base64.DEFAULT))
+            .putString(KEY_PUBLIC, Base64.encodeToString(keyPair.public.encoded, Base64.DEFAULT))
+            .apply()
+
+        return keyPair
+    }
+
+    private fun signToken(token: ByteArray, privateKey: RSAPrivateKey): ByteArray {
+        val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
+        cipher.init(Cipher.ENCRYPT_MODE, privateKey)
+        return cipher.doFinal(token)
+    }
+
+    /**
+     * Converts a 2048-bit RSAPublicKey into the standard 524-byte AOSP android_pubkey format
+     * expected by Android adbd daemon to display the authorization prompt on screen.
+     */
+    private fun convertRsaPublicKeyToAdbFormat(pubKey: RSAPublicKey, user: String): ByteArray {
+        val modulus = pubKey.modulus
+        val r32 = BigInteger.valueOf(2).pow(32)
+        val n0invBig = modulus.remainder(r32).modInverse(r32).negate().remainder(r32)
+        val n0inv = n0invBig.toInt()
+
+        val r = BigInteger.valueOf(2).pow(2048)
+        val rr = r.multiply(r).remainder(modulus)
+
+        val buffer = ByteBuffer.allocate(524).order(ByteOrder.LITTLE_ENDIAN)
+        buffer.putInt(64) // num_words = 64 (2048 bits / 32 bits per word)
+        buffer.putInt(n0inv)
+
+        // Modulus words (64 x 32-bit uints in little-endian)
+        var remN = modulus
+        for (i in 0 until 64) {
+            val word = remN.remainder(r32).toInt()
+            buffer.putInt(word)
+            remN = remN.divide(r32)
+        }
+
+        // R^2 mod N words (64 x 32-bit uints in little-endian)
+        var remRR = rr
+        for (i in 0 until 64) {
+            val word = remRR.remainder(r32).toInt()
+            buffer.putInt(word)
+            remRR = remRR.divide(r32)
+        }
+
+        // Exponent
+        buffer.putInt(pubKey.publicExponent.toInt())
+
+        val base64Key = Base64.encodeToString(buffer.array(), Base64.NO_WRAP)
+        return "$base64Key $user\u0000".toByteArray(Charsets.UTF_8)
+    }
+
+    // =========================================================================
+    // ADB PROTOCOL PACKET SERIALIZATION / DESERIALIZATION
+    // =========================================================================
 
     private data class AdbHeader(
         val command: Int,
@@ -149,6 +376,17 @@ object AdbHelper {
             dataCrc32 = buffer.int,
             magic = buffer.int
         )
+    }
+
+    private fun readPayload(inputStream: InputStream, length: Int): ByteArray {
+        val data = ByteArray(length)
+        var totalRead = 0
+        while (totalRead < length) {
+            val read = inputStream.read(data, totalRead, length - totalRead)
+            if (read == -1) break
+            totalRead += read
+        }
+        return data
     }
 
     private fun skipBytes(inputStream: InputStream, count: Int) {

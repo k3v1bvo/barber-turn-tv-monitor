@@ -1,6 +1,11 @@
 package com.example
 
+import android.app.UiModeManager
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -15,6 +20,7 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.viewmodel.TurnViewModel
 import com.example.service.FloatingTurnBubbleService
@@ -26,6 +32,7 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: TurnViewModel by viewModels()
     private var showTvOverlayDialog by mutableStateOf(false)
+    private var hasPendingBubbleStart = false
 
     private val overlayPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -33,19 +40,26 @@ class MainActivity : ComponentActivity() {
         if (checkOverlayPermission()) {
             startBubbleServiceSafely()
         } else {
-            // On TV Boxes (Xiaomi Mi Box / Google TV), canDrawOverlays might still report false
-            // even after manual grant or without UI. We attempt a safe start.
             startBubbleServiceSafely()
         }
     }
 
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ ->
+        // Notification permission handled
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        // Prevent screen timeout / sleep on Xiaomi TV Box
+
+        // Keep screen awake for barber shop display
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         enableEdgeToEdge()
+        requestNotificationPermissionIfNeeded()
+
+        val isTv = isTvDevice()
 
         setContent {
             val lastTvIp by viewModel.lastTvIp.collectAsStateWithLifecycle()
@@ -62,10 +76,17 @@ class MainActivity : ComponentActivity() {
                 if (showTvOverlayDialog) {
                     TvOverlayPermissionDialog(
                         initialTargetIp = lastTvIp,
+                        isTvDevice = isTv,
                         onSaveTargetIp = { viewModel.saveLastTvIp(it) },
                         onOpenSettings = {
                             showTvOverlayDialog = false
+                            hasPendingBubbleStart = true
                             openOverlaySettingsSafely()
+                        },
+                        onOpenXiaomiSettings = {
+                            showTvOverlayDialog = false
+                            hasPendingBubbleStart = true
+                            openXiaomiPermissionsSafely()
                         },
                         onTryDirectStart = {
                             showTvOverlayDialog = false
@@ -76,6 +97,33 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // If returning from system settings after granting permission, auto-launch the bubble
+        if (hasPendingBubbleStart && checkOverlayPermission()) {
+            hasPendingBubbleStart = false
+            startBubbleServiceSafely()
+        }
+    }
+
+    private fun isTvDevice(): Boolean {
+        val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
+        val isTelevision = uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+        val hasLeanback = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+        val hasNoTouch = !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
+        return isTelevision || hasLeanback || hasNoTouch
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
             }
         }
     }
@@ -115,8 +163,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Safely attempts to open overlay permission settings.
-     * Tries Android TV Leanback Special App Access screens first, then fallbacks.
+     * Safely opens overlay settings for standard Android, Android TV, and Xiaomi.
      */
     private fun openOverlaySettingsSafely() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
@@ -124,31 +171,59 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        // Tier 1: Android TV Leanback Special App Access (Xiaomi Mi Box / Skyworth / Google TV)
-        val tvIntents = listOf(
-            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.device.apps.specialaccess.SpecialAppAccessActivity"),
-            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.device.apps.specialaccess.HighPriorityPermissionActivity"),
-            Intent().setClassName("com.google.android.tv.frameworkpackagestubs", "com.google.android.tv.frameworkpackagestubs.StubsActivity"),
+        val intents = listOf(
             Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
             Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
+            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.device.apps.specialaccess.SpecialAppAccessActivity"),
+            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.device.apps.specialaccess.HighPriorityPermissionActivity"),
             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")),
             Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)
         )
 
-        for (intent in tvIntents) {
+        for (intent in intents) {
             try {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
+                overlayPermissionLauncher.launch(intent)
                 Toast.makeText(
                     this,
-                    "En la TV: Entra a 'Mostrar sobre otras apps' y actívalo para BarberSite.",
+                    "Activa el interruptor 'Permitir mostrar sobre otras apps' para BarberSite.",
                     Toast.LENGTH_LONG
                 ).show()
                 return
             } catch (_: Exception) {}
         }
 
-        // Fallback: Direct start if no settings screen is available in this TV ROM
         startBubbleServiceSafely()
+    }
+
+    /**
+     * Opens Xiaomi / MIUI / HyperOS specific permission editor ("Ventanas emergentes").
+     */
+    private fun openXiaomiPermissionsSafely() {
+        val xiaomiIntents = listOf(
+            Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity")
+                putExtra("extra_pkgname", packageName)
+            },
+            Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                putExtra("extra_pkgname", packageName)
+            },
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+        )
+
+        for (intent in xiaomiIntents) {
+            try {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                overlayPermissionLauncher.launch(intent)
+                Toast.makeText(
+                    this,
+                    "En permisos de Xiaomi: Activa 'Mostrar ventanas emergentes en segundo plano'.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return
+            } catch (_: Exception) {}
+        }
+
+        openOverlaySettingsSafely()
     }
 }

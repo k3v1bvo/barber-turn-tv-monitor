@@ -11,14 +11,17 @@ import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
-import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
+import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.AndroidUiDispatcher
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -32,7 +35,6 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.example.MainActivity
-import com.example.R
 import com.example.data.local.SettingsManager
 import com.example.data.model.SupabaseSettings
 import com.example.data.model.TurnBoardState
@@ -50,11 +52,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /**
  * FloatingTurnBubbleService: Foreground Service that injects a floating bubble
  * directly into the Android WindowManager (TYPE_APPLICATION_OVERLAY).
- * Stays visible on top of YouTube, Netflix, TV Box Launcher, or any app.
+ * Stays visible on top of YouTube, Netflix, TV Box Launcher, or any app on TV & Mobile.
  */
 class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
 
@@ -85,6 +88,7 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
     private var pollingJob: Job? = null
 
     companion object {
+        private const val TAG = "FloatingTurnBubble"
         const val CHANNEL_ID = "barber_floating_turn_channel"
         const val NOTIFICATION_ID = 9021
         const val ACTION_STOP = "com.example.service.ACTION_STOP_FLOATING"
@@ -112,17 +116,22 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
     override fun onCreate() {
         super.onCreate()
         isRunning = true
-        savedStateRegistryController.performRestore(null)
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+
+        try {
+            savedStateRegistryController.performAttach()
+            savedStateRegistryController.performRestore(null)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error initializing lifecycle", e)
+        }
 
         settingsManager = SettingsManager(applicationContext)
 
         startForegroundNotification()
         initWindowManagerView()
         observeSettingsAndRealtime()
-
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -136,132 +145,145 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun startForegroundNotification() {
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Turnos Barbería Flotante",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Muestra la burbuja flotante de turnos sobre otras apps"
+        try {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    "Turnos Barbería Flotante",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "Muestra la burbuja flotante de turnos sobre otras apps"
+                    setShowBadge(false)
+                }
+                notificationManager.createNotificationChannel(channel)
             }
-            notificationManager.createNotificationChannel(channel)
+
+            val openAppIntent = Intent(this, MainActivity::class.java)
+            val pendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                openAppIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("💈 BarberSite TV - Burbuja Flotante")
+                .setContentText("Turno actual visible sobre todas las apps")
+                .setSmallIcon(android.R.drawable.ic_menu_agenda)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .build()
+
+            startForeground(NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting foreground notification", e)
         }
-
-        val openAppIntent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            openAppIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("💈 BarberSite TV - Burbuja Flotante")
-            .setContentText("Turno actual visible sobre todas las apps")
-            .setSmallIcon(android.R.drawable.ic_menu_agenda)
-            .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .build()
-
-        startForeground(NOTIFICATION_ID, notification)
     }
 
     @SuppressLint("ClickableViewAccessibility")
     private fun initWindowManagerView() {
-        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        try {
+            windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-        val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
+            val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
 
-        layoutParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            overlayType,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = 40
-            y = 120
-        }
+            layoutParams = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                overlayType,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = 40
+                y = 140
+            }
 
-        val composeView = ComposeView(this).apply {
-            setViewTreeLifecycleOwner(this@FloatingTurnBubbleService)
-            setViewTreeViewModelStoreOwner(this@FloatingTurnBubbleService)
-            setViewTreeSavedStateRegistryOwner(this@FloatingTurnBubbleService)
+            val composeView = ComposeView(this).apply {
+                setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+                setViewTreeLifecycleOwner(this@FloatingTurnBubbleService)
+                setViewTreeViewModelStoreOwner(this@FloatingTurnBubbleService)
+                setViewTreeSavedStateRegistryOwner(this@FloatingTurnBubbleService)
 
-            setContent {
-                BarberTvTheme {
-                    val state by turnState.collectAsState()
-                    FloatingBubbleUi(
-                        turnState = state,
-                        onNextTurn = { onNextTurnClicked() },
-                        onOpenApp = { openMainActivity() },
-                        onCloseService = { stopSelf() }
-                    )
+                val coroutineContext = AndroidUiDispatcher.CurrentThread
+                val recomposer = Recomposer(coroutineContext)
+                compositionContext = recomposer
+                serviceScope.launch(coroutineContext) {
+                    recomposer.runRecomposeAndApplyChanges()
+                }
+
+                setContent {
+                    BarberTvTheme {
+                        val state by turnState.collectAsState()
+                        FloatingBubbleUi(
+                            turnState = state,
+                            onNextTurn = { onNextTurnClicked() },
+                            onOpenApp = { openMainActivity() },
+                            onCloseService = { stopSelf() }
+                        )
+                    }
                 }
             }
-        }
 
-        // Add touch listener to allow dragging the floating bubble anywhere on screen
-        var initialX = 0
-        var initialY = 0
-        var initialTouchX = 0f
-        var initialTouchY = 0f
-        var isClick = false
+            // Smooth dragging on both touch screens (phones) and mouse/trackpads (TV boxes)
+            var initialX = 0
+            var initialY = 0
+            var initialTouchX = 0f
+            var initialTouchY = 0f
+            var isMoving = false
+            val touchSlop = 12
 
-        composeView.setOnTouchListener { view, event ->
-            val params = layoutParams ?: return@setOnTouchListener false
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    initialX = params.x
-                    initialY = params.y
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
-                    isClick = true
-                    false
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val deltaX = (event.rawX - initialTouchX).toInt()
-                    val deltaY = (event.rawY - initialTouchY).toInt()
-
-                    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
-                        isClick = false
-                        params.x = initialX + deltaX
-                        params.y = initialY + deltaY
-                        try {
-                            windowManager?.updateViewLayout(composeView, params)
-                        } catch (_: Exception) {}
-                        true
-                    } else {
+            composeView.setOnTouchListener { _, event ->
+                val params = layoutParams ?: return@setOnTouchListener false
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = params.x
+                        initialY = params.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        isMoving = false
                         false
                     }
-                }
-                MotionEvent.ACTION_UP -> {
-                    if (isClick) {
-                        view.performClick()
-                    }
-                    false
-                }
-                else -> false
-            }
-        }
+                    MotionEvent.ACTION_MOVE -> {
+                        val deltaX = (event.rawX - initialTouchX).toInt()
+                        val deltaY = (event.rawY - initialTouchY).toInt()
 
-        floatingView = composeView
-        try {
+                        if (abs(deltaX) > touchSlop || abs(deltaY) > touchSlop) {
+                            isMoving = true
+                            params.x = initialX + deltaX
+                            params.y = initialY + deltaY
+                            try {
+                                windowManager?.updateViewLayout(composeView, params)
+                            } catch (_: Exception) {}
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        isMoving
+                    }
+                    else -> false
+                }
+            }
+
+            floatingView = composeView
             windowManager?.addView(composeView, layoutParams)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Error adding floating overlay view", e)
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 Toast.makeText(
                     applicationContext,
-                    "TV Box: Ve a Ajustes > Apps > BarberSite > Permisos y activa 'Mostrar sobre otras apps'",
+                    "No se pudo mostrar la burbuja. Verifica los permisos de superposición en Ajustes.",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -296,7 +318,9 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
                     repository.subscribeToRealtimeChanges(currentSettings).collect {
                         fetchState()
                     }
-                } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    Log.e(TAG, "Realtime subscription error in service", e)
+                }
             }
         }
 
@@ -317,7 +341,9 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
                     settingsManager.saveRotationOffset(newState.rotationOffset)
                 }
                 _turnState.value = newState
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.e(TAG, "Error fetching state in service", e)
+            }
         }
     }
 
@@ -345,10 +371,14 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
 
     override fun onDestroy() {
         isRunning = false
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
-        store.clear()
+        try {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+            store.clear()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error destroying lifecycle in service", e)
+        }
 
         realtimeJob?.cancel()
         pollingJob?.cancel()
