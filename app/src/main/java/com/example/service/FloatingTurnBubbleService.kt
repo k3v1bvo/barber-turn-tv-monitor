@@ -251,77 +251,57 @@ class FloatingTurnBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner
             removeFloatingView()
         }
 
-        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        try {
+            windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-        // Candidate window types ordered by priority (handles TV ROM restrictions)
-        val overlayTypes = buildList {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                add(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+            val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
             }
-            @Suppress("DEPRECATION")
-            add(WindowManager.LayoutParams.TYPE_PHONE)
-            @Suppress("DEPRECATION")
-            add(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT)
-            @Suppress("DEPRECATION")
-            add(WindowManager.LayoutParams.TYPE_SYSTEM_OVERLAY)
-            @Suppress("DEPRECATION")
-            add(WindowManager.LayoutParams.TYPE_TOAST)
-        }
 
-        var lastException: Exception? = null
-
-        for (type in overlayTypes) {
-            try {
-                val params = WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    type,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-                    PixelFormat.TRANSLUCENT
-                ).apply {
-                    gravity = Gravity.TOP or Gravity.START
-                    x = 40
-                    y = 140
-                }
-
-                val composeView = createComposeView(params)
-                windowManager?.addView(composeView, params)
-
-                // Success! Save view and params
-                layoutParams = params
-                floatingView = composeView
-                lastException = null
-                Log.d(TAG, "Successfully added floating overlay using window type $type")
-
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    Toast.makeText(applicationContext, "💈 Burbuja Flotante activada sobre todas las apps", Toast.LENGTH_SHORT).show()
-                }
-                return
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to add view with window type $type: ${e.message}")
-                lastException = e
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                overlayType,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = 40
+                y = 140
             }
-        }
 
-        // If ALL overlay window types failed:
-        Log.e(TAG, "All overlay window types failed to display", lastException)
-        removeFloatingView()
+            val composeView = createComposeView(params)
+            windowManager?.addView(composeView, params)
 
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            Toast.makeText(
-                applicationContext,
-                "No se pudo mostrar la burbuja: ${lastException?.localizedMessage ?: "Permiso denegado"}",
-                Toast.LENGTH_LONG
-            ).show()
-        }
+            layoutParams = params
+            floatingView = composeView
 
-        val failIntent = Intent(ACTION_OVERLAY_FAILED).apply {
-            setPackage(applicationContext.packageName)
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                Toast.makeText(applicationContext, "💈 Burbuja Flotante activada sobre todas las apps", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error adding floating overlay view", e)
+            removeFloatingView()
+
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                Toast.makeText(
+                    applicationContext,
+                    "No se pudo mostrar la burbuja: ${e.localizedMessage ?: "Verifica permisos en Ajustes"}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+
+            val failIntent = Intent(ACTION_OVERLAY_FAILED).apply {
+                setPackage(applicationContext.packageName)
+            }
+            sendBroadcast(failIntent)
+            stopSelf()
         }
-        sendBroadcast(failIntent)
-        stopSelf()
     }
 
     private fun removeFloatingView() {

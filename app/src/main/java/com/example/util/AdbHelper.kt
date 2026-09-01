@@ -183,8 +183,22 @@ object AdbHelper {
             val commandPayload = shellCommand.toByteArray(Charsets.UTF_8)
             writeMessage(outputStream, A_OPEN, 1, 0, commandPayload)
 
-            val openResponse = readHeader(inputStream)
-            if (openResponse != null && (openResponse.command == A_OKAY || openResponse.command == A_WRTE)) {
+            // Wait for shell execution to finish completely on TV Box before closing socket
+            var commandsExecuted = false
+            for (readStep in 0 until 15) {
+                val respHeader = readHeader(inputStream) ?: break
+                if (respHeader.command == A_OKAY || respHeader.command == A_WRTE) {
+                    commandsExecuted = true
+                }
+                if (respHeader.dataLength > 0) {
+                    skipBytes(inputStream, respHeader.dataLength)
+                }
+                if (respHeader.command == A_CLSE) {
+                    break
+                }
+            }
+
+            if (commandsExecuted) {
                 return@withContext AdbResult.Success("¡Permiso de superposición concedido con éxito en la TV! 🎉")
             }
 
