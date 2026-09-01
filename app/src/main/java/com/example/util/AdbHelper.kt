@@ -25,7 +25,7 @@ import java.security.interfaces.RSAPublicKey
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.Collections
-import javax.crypto.Cipher
+
 
 /**
  * Pure Kotlin ADB Client with full RSA Cryptography & Wi-Fi Scanner:
@@ -282,9 +282,12 @@ object AdbHelper {
     }
 
     private fun signToken(token: ByteArray, privateKey: RSAPrivateKey): ByteArray {
-        val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
-        cipher.init(Cipher.ENCRYPT_MODE, privateKey)
-        return cipher.doFinal(token)
+        // ADB expects PKCS1-padded RSA signature (same as openssl rsautl -sign)
+        val signature = java.security.Signature.getInstance("NONEwithRSA")
+        signature.initSign(privateKey)
+        // ADB sends a 20-byte token; we must sign it raw with PKCS#1 v1.5 padding
+        signature.update(token)
+        return signature.sign()
     }
 
     /**
